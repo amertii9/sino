@@ -33,8 +33,8 @@ flowchart LR
         G[Sync files to /opt/truck-fleet]
         H[Inject Production .env]
         I[Docker Compose Build & Run]
-        J[Nginx Frontend :80]
-        K[Go Gin Backend :8088]
+        J[Nginx Frontend :6060]
+        K[Go Gin Backend :6061]
         L[MongoDB Database :27017]
         I --> J
         I --> K
@@ -111,7 +111,8 @@ sudo chmod 755 /opt/truck-fleet
 sudo ufw allow 22/tcp
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw allow 8088/tcp
+sudo ufw allow 6060/tcp
+sudo ufw allow 6061/tcp
 sudo ufw --force enable
 ```
 
@@ -172,8 +173,8 @@ In your GitHub repository:
 | `MONGO_URI` | `mongodb://mongodb:27017` | MongoDB connection string (leave default for containerized Mongo, or enter MongoDB Atlas URI) |
 | `MONGO_DB_NAME` | `truck_fleet_db` | Name of the MongoDB database |
 | `CORS_ORIGINS` | `*` | Comma-separated list of allowed origins (e.g., `https://yourdomain.com`) |
-| `FRONTEND_PORT` | `80` | Port for web traffic (HTTP) |
-| `BACKEND_PORT` | `8088` | Port for backend API server |
+| `FRONTEND_PORT` | `6060` | Port for web traffic (HTTP) |
+| `BACKEND_PORT` | `6061` | Port for backend API server |
 
 > [!IMPORTANT]
 > When pasting `VPS_SSH_KEY`, make sure to copy the entire contents of the private key file, including the first line (`-----BEGIN OPENSSH PRIVATE KEY-----`) and the last line (`-----END OPENSSH PRIVATE KEY-----`), with no extra spaces.
@@ -202,7 +203,7 @@ Once secrets are configured:
 2. **Sync**: Securely copies application code to `/opt/truck-fleet` on your VPS.
 3. **Environment**: Generates the production `.env` file using your GitHub secrets.
 4. **Deploy**: Builds Docker images and starts containers with Docker Compose.
-5. **Healthcheck**: Verifies `http://127.0.0.1:8088/api/health` responds with `status: ok`.
+5. **Healthcheck**: Verifies `http://127.0.0.1:6061/api/health` responds with `status: ok`.
 6. **Cleanup**: Removes dangling images to conserve server storage.
 
 ---

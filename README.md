@@ -85,7 +85,7 @@ go run ./cmd/server
 The backend will:
 1. Connect to MongoDB (`mongodb://localhost:27017`)
 2. Auto-seed realistic demo data (Trucks, Drivers, Routes, Materials, Trips, Expenses, and Settings)
-3. Start listening on `http://localhost:8088`
+3. Start listening on `http://localhost:6061`
 
 ---
 
@@ -96,7 +96,7 @@ npm run dev
 ```
 Open your browser to:
 ```
-http://localhost:5173
+http://localhost:6060
 ```
 
 ---

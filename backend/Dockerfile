@@ -39,10 +39,10 @@ RUN chmod +x /app/server
 
 USER appuser
 
-EXPOSE 8088
+EXPOSE 6061
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8088/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:6061/api/health || exit 1
 
 ENTRYPOINT ["/app/server"]

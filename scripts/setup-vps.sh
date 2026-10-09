@@ -87,10 +87,10 @@ echo "==> Configuring firewall rules..."
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp comment 'SSH'
-ufw allow 80/tcp comment 'HTTP (Frontend)'
+ufw allow 80/tcp comment 'HTTP'
 ufw allow 443/tcp comment 'HTTPS'
-# If backend port 8088 needs to be accessed directly without Nginx reverse proxy:
-ufw allow 8088/tcp comment 'Backend API (Direct)'
+ufw allow 6060/tcp comment 'Frontend Web (Custom Port)'
+ufw allow 6061/tcp comment 'Backend API (Custom Port)'
 echo "y" | ufw enable || true
 
 echo "=========================================================="

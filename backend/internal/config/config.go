@@ -23,7 +23,7 @@ func LoadConfig() *Config {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8088"
+		port = "6061"
 	}
 
 	mongoURI := os.Getenv("MONGO_URI")
@@ -44,7 +44,7 @@ func LoadConfig() *Config {
 
 	corsOrigins := os.Getenv("CORS_ORIGINS")
 	if corsOrigins == "" {
-		corsOrigins = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,*"
+		corsOrigins = "http://localhost:6060,http://localhost:6061,http://localhost:5173,http://localhost:3000,http://127.0.0.1:6060,*"
 	}
 
 	env := strings.ToLower(os.Getenv("ENV"))
