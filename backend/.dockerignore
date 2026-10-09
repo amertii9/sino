@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.env.local
+.env.*
+!.env.example
+*.exe
+server
+server.exe
+*.log
+vendor/
+tmp/
+scratch/

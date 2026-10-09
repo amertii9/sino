@@ -1,0 +1,69 @@
+# ==========================================
+# Dependencies & Package Managers
+# ==========================================
+node_modules/
+frontend/node_modules/
+vendor/
+backend/vendor/
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# ==========================================
+# Build Artifacts & Compiled Binaries
+# ==========================================
+dist/
+frontend/dist/
+build/
+*.exe
+backend/server.exe
+backend/server
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+
+# ==========================================
+# Logs & Scratch Directories
+# ==========================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+scratch/
+tmp/
+temp/
+
+# ==========================================
+# Operating System & IDE Artifacts
+# ==========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# ==========================================
+# Docker / Local Database Mounts
+# ==========================================
+mongo_data/
+mongodb_data/
+data/
