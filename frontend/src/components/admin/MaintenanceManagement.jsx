@@ -140,12 +140,12 @@ export const MaintenanceManagement = () => {
   };
 
   const handleDelete = async (m) => {
-    if (!confirm(`Are you sure you want to permanently delete Maintenance #${m.maintenance_number}?`)) return;
+    if (!confirm(t('confirm_delete_maintenance', 'Are you sure you want to permanently delete this maintenance record?'))) return;
     try {
       await api.delete(`/maintenance/${m.id}`);
       loadData();
     } catch (err) {
-      alert('Delete failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -154,17 +154,17 @@ export const MaintenanceManagement = () => {
       await api.patch(`/maintenance/${m.id}/approve`);
       await loadData();
     } catch (err) {
-      alert('Approval failed: ' + err.message);
+      alert(err.message);
     }
   };
 
   const handleReject = async (m) => {
-    if (!confirm(`Reject maintenance request #${m.maintenance_number} for truck ${m.truck_plate}?`)) return;
+    if (!confirm(t('confirm_reject_maintenance', 'Reject maintenance request?'))) return;
     try {
       await api.patch(`/maintenance/${m.id}/reject`);
       await loadData();
     } catch (err) {
-      alert('Rejection failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -187,7 +187,7 @@ export const MaintenanceManagement = () => {
 
   const handleRemoveSuggestion = (idx) => {
     if (suggestions.length <= 1) {
-      alert('At least one suggestion is required.');
+      alert(t('at_least_one_suggestion_required', 'At least one suggestion is required.'));
       return;
     }
     const updated = suggestions.filter((_, i) => i !== idx);
@@ -217,14 +217,14 @@ export const MaintenanceManagement = () => {
         setIsSuggestionsModalOpen(false);
       }, 1500);
     } catch (err) {
-      alert('Failed to save suggestions: ' + err.message);
+      alert(err.message);
     } finally {
       setSavingSuggestions(false);
     }
   };
 
   const handleResetSuggestionsDefaults = () => {
-    if (confirm('Reset suggestions to factory defaults?')) {
+    if (confirm(t('reset_suggestions_factory', 'Reset suggestions to factory defaults?'))) {
       setSuggestions(DEFAULT_SUGGESTIONS);
     }
   };
@@ -261,7 +261,7 @@ export const MaintenanceManagement = () => {
             title="Edit the presets shown to drivers under 'What is the issue / maintenance required?'"
           >
             <Sparkles className="w-4 h-4 text-purple-400" />
-            <span>Issue Suggestions</span>
+            <span>{t('issue_suggestions_tab', 'Issue Suggestions')}</span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-500/20 text-purple-300 font-mono font-bold">
               {suggestions.length}
             </span>
@@ -286,7 +286,7 @@ export const MaintenanceManagement = () => {
               : 'text-slate-400 hover:text-white hover:bg-slate-800'
           }`}
         >
-          <span>All Records</span>
+          <span>{t('all_records_tab', 'All Records')}</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900/40 text-current font-mono">
             {maintenance.length}
           </span>
@@ -303,7 +303,7 @@ export const MaintenanceManagement = () => {
           }`}
         >
           <Clock className="w-3.5 h-3.5" />
-          <span>Pending Approval</span>
+          <span>{t('pending_approval_tab', 'Pending Approval')}</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
             pendingCount > 0 ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
           }`}>
@@ -320,7 +320,7 @@ export const MaintenanceManagement = () => {
           }`}
         >
           <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Approved</span>
+          <span>{t('approved_tab', 'Approved')}</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
             {approvedCount}
           </span>
@@ -335,7 +335,7 @@ export const MaintenanceManagement = () => {
           }`}
         >
           <Wrench className="w-3.5 h-3.5 text-blue-400" />
-          <span>In Progress</span>
+          <span>{t('in_progress_tab', 'In Progress')}</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
             {inProgressCount}
           </span>
@@ -349,7 +349,7 @@ export const MaintenanceManagement = () => {
               : 'text-slate-400 hover:text-white hover:bg-slate-800'
           }`}
         >
-          <span>Completed</span>
+          <span>{t('completed_tab', 'Completed')}</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
             {completedCount}
           </span>
@@ -360,7 +360,7 @@ export const MaintenanceManagement = () => {
       {filteredMaintenance.length === 0 ? (
         <div className="py-12 text-center text-slate-400 text-xs bg-slate-900 border border-slate-800 rounded-3xl p-6">
           <Wrench className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-          <p>No maintenance records found for the selected filter.</p>
+          <p>{t('no_maint_records_filter', 'No maintenance records found for the selected filter.')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -463,7 +463,7 @@ export const MaintenanceManagement = () => {
                         className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer transition touch-btn"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        <span>Approve Request</span>
+                        <span>{t('approve_request_btn', 'Approve Request')}</span>
                       </button>
                       <button
                         type="button"
@@ -471,7 +471,7 @@ export const MaintenanceManagement = () => {
                         className="px-3 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs rounded-xl border border-rose-500/30 flex items-center justify-center gap-1 cursor-pointer transition"
                       >
                         <XCircle className="w-4 h-4" />
-                        <span>Reject</span>
+                        <span>{t('reject_action_btn', 'Reject')}</span>
                       </button>
                     </div>
                   </div>
@@ -510,14 +510,14 @@ export const MaintenanceManagement = () => {
             <form onSubmit={handleSave} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Truck:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('truck_field_label', 'Truck:')}</label>
                   <select
                     value={formData.truck_id}
                     onChange={e => setFormData({ ...formData, truck_id: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                     required
                   >
-                    <option value="">Select Truck</option>
+                    <option value="">{t('select_truck_opt', 'Select Truck')}</option>
                     {trucks.map(t => (
                       <option key={t.id} value={t.id}>{t.plate_number} ({t.model})</option>
                     ))}
@@ -525,7 +525,7 @@ export const MaintenanceManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Maintenance Type:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('maint_type_field_label', 'Maintenance Type:')}</label>
                   <select
                     value={formData.maintenance_type}
                     onChange={e => setFormData({ ...formData, maintenance_type: e.target.value })}
@@ -540,7 +540,7 @@ export const MaintenanceManagement = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Cost (ETB):</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('cost_etb_field_label', 'Cost (ETB):')}</label>
                   <input
                     type="number"
                     value={formData.cost}
@@ -551,7 +551,7 @@ export const MaintenanceManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Current Mileage (km):</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('curr_mileage_km_field', 'Current Mileage (km):')}</label>
                   <input
                     type="number"
                     value={formData.mileage}
@@ -562,10 +562,10 @@ export const MaintenanceManagement = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Service Description:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('service_desc_field_label', 'Service Description:')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. Brake pad relining and air brake tank purge"
+                  placeholder={t('service_desc_ph', 'e.g. Brake pad relining and air brake tank purge')}
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -575,37 +575,37 @@ export const MaintenanceManagement = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Status:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('status_field_colon', 'Status:')}</label>
                   <select
                     value={formData.status}
                     onChange={e => setFormData({ ...formData, status: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                   >
-                    <option value="pending">Pending Review</option>
-                    <option value="approved">Approved</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="rejected">Rejected</option>
+                    <option value="pending">{t('pending_review_opt', 'Pending Review')}</option>
+                    <option value="approved">{t('approved_tab', 'Approved')}</option>
+                    <option value="in_progress">{t('in_progress_tab', 'In Progress')}</option>
+                    <option value="completed">{t('completed_tab', 'Completed')}</option>
+                    <option value="rejected">{t('status_rejected', 'Rejected')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Priority:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('priority_field_label', 'Priority:')}</label>
                   <select
                     value={formData.priority}
                     onChange={e => setFormData({ ...formData, priority: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                   >
-                    <option value="normal">Normal / Routine</option>
-                    <option value="high">High Priority</option>
-                    <option value="urgent">Urgent / Breakdown</option>
+                    <option value="normal">{t('normal_routine_opt', 'Normal / Routine')}</option>
+                    <option value="high">{t('high_priority_opt', 'High Priority')}</option>
+                    <option value="urgent">{t('urgent_breakdown_opt', 'Urgent / Breakdown')}</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Next Service Date:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('next_service_date', 'Next Service Date:')}</label>
                   <input
                     type="date"
                     value={formData.next_date}
@@ -615,7 +615,7 @@ export const MaintenanceManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Next Service km:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('next_service_km_label', 'Next Service km:')}</label>
                   <input
                     type="number"
                     value={formData.next_mileage}
@@ -631,7 +631,7 @@ export const MaintenanceManagement = () => {
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
-                  Cancel
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -717,7 +717,7 @@ export const MaintenanceManagement = () => {
                         type="text"
                         value={item.label}
                         onChange={e => handleUpdateSuggestionLabel(idx, e.target.value)}
-                        placeholder="Issue title"
+                        placeholder={t('ph_issue_title', 'Issue title')}
                         className="flex-1 py-1.5 px-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs font-semibold focus:outline-none focus:border-purple-400"
                       />
 
@@ -738,12 +738,12 @@ export const MaintenanceManagement = () => {
               {/* Add New Suggestion Box */}
               <div className="p-3.5 bg-purple-500/10 border border-purple-500/25 rounded-2xl space-y-2.5">
                 <span className="font-bold text-purple-300 block text-xs">
-                  + Add New Issue Preset
+                  {t('add_issue_preset_sub', '+ Add New Issue Preset')}
                 </span>
 
                 {/* Quick Icon Chips */}
                 <div className="flex flex-wrap gap-1.5 items-center">
-                  <span className="text-[11px] text-slate-400">Choose Icon:</span>
+                  <span className="text-[11px] text-slate-400">{t('choose_icon_label', 'Choose Icon:')}</span>
                   {PRESET_ICONS.slice(0, 8).map(ic => (
                     <button
                       type="button"
@@ -763,7 +763,7 @@ export const MaintenanceManagement = () => {
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="e.g. Transmission Fluid & Clutch / Radiator Hose"
+                    placeholder={t('ph_transmission_fluid_desc', 'e.g. Transmission Fluid & Clutch / Radiator Hose')}
                     value={newSuggestionLabel}
                     onChange={e => setNewSuggestionLabel(e.target.value)}
                     onKeyDown={e => {

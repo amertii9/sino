@@ -173,23 +173,23 @@ export const ReportsView = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Total Trips (Month)</span>
+              <span className="text-[11px] text-slate-400">{t('total_trips_month_stat', 'Total Trips (Month)')}</span>
               <div className="text-2xl font-black text-white mt-1">{dashboardStats?.trips_month || 0}</div>
             </div>
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Tons Transported</span>
+              <span className="text-[11px] text-slate-400">{t('tons_transported', 'Tons Transported')}</span>
               <div className="text-2xl font-black text-amber-400 mt-1">
-                {formatNumber(dashboardStats?.quantity_month || 0)} tons
+                {formatNumber(dashboardStats?.quantity_month || 0)} {t('tons', 'tons')}
               </div>
             </div>
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Gross Hauling Revenue</span>
+              <span className="text-[11px] text-slate-400">{t('gross_hauling_revenue', 'Gross Hauling Revenue')}</span>
               <div className="text-2xl font-black text-emerald-400 mt-1">
                 {formatCurrency(dashboardStats?.monthly_revenue || 0)}
               </div>
             </div>
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Total Company Expenses</span>
+              <span className="text-[11px] text-slate-400">{t('total_company_expenses_stat', 'Total Company Expenses')}</span>
               <div className="text-2xl font-black text-red-400 mt-1">
                 {formatCurrency(dashboardStats?.monthly_total_expense || 0)}
               </div>
@@ -197,22 +197,22 @@ export const ReportsView = () => {
           </div>
 
           <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
-            <h3 className="font-bold text-base text-white">Monthly Profit & Loss Breakdown</h3>
+            <h3 className="font-bold text-base text-white">{t('monthly_pl_breakdown', 'Monthly Profit & Loss Breakdown')}</h3>
             <div className="divide-y divide-slate-800 text-xs">
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-300">Total Hauling Revenue</span>
+                <span className="text-slate-300">{t('total_hauling_revenue', 'Total Hauling Revenue')}</span>
                 <span className="font-black text-emerald-400 font-mono text-sm">{formatCurrency(dashboardStats?.monthly_revenue || 0)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400 pl-4">Less: Diesel Fuel Advances</span>
+                <span className="text-slate-400 pl-4">{t('less_fuel_advances', 'Less: Diesel Fuel Advances')}</span>
                 <span className="font-bold text-red-400 font-mono">- {formatCurrency(dashboardStats?.monthly_fuel_expense || 0)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400 pl-4">Less: Maintenance, Parts, Tires & Other</span>
+                <span className="text-slate-400 pl-4">{t('less_maintenance_parts', 'Less: Maintenance, Parts, Tires & Other')}</span>
                 <span className="font-bold text-red-400 font-mono">- {formatCurrency(dashboardStats?.monthly_other_expense || 0)}</span>
               </div>
               <div className="py-3 flex justify-between items-center bg-emerald-950/20 px-3 rounded-2xl border border-emerald-500/30">
-                <span className="font-bold text-emerald-400 text-sm">NET OPERATIONAL PROFIT:</span>
+                <span className="font-bold text-emerald-400 text-sm">{t('net_operational_profit', 'NET OPERATIONAL PROFIT:')}</span>
                 <span className="text-xl font-black text-emerald-400 font-mono">{formatCurrency(dashboardStats?.monthly_net_profit || 0)}</span>
               </div>
             </div>
@@ -225,35 +225,35 @@ export const ReportsView = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Avg. Fuel Consumption</span>
+              <span className="text-[11px] text-slate-400">{t('avg_fuel_consumption_label', 'Avg. Fuel Consumption')}</span>
               <div className="text-2xl font-black text-amber-400 mt-1 font-mono">
-                {dashboardStats?.avg_fuel_consumption_l_per_km !== undefined ? Number(dashboardStats.avg_fuel_consumption_l_per_km).toFixed(3) : (dashboardStats?.fuel_estimation?.liters_per_km !== undefined ? Number(dashboardStats.fuel_estimation.liters_per_km).toFixed(3) : '0.000')} <span className="text-sm">L/km</span>
+                {dashboardStats?.avg_fuel_consumption_l_per_km !== undefined ? Number(dashboardStats.avg_fuel_consumption_l_per_km).toFixed(3) : (dashboardStats?.fuel_estimation?.liters_per_km !== undefined ? Number(dashboardStats.fuel_estimation.liters_per_km).toFixed(3) : '0.000')} <span className="text-sm">{t('liters_per_km_unit', 'L/km')}</span>
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">{dashboardStats?.fuel_estimation?.liters_per_100km || 0} L/100km • {dashboardStats?.fuel_estimation?.km_per_liter || 0} km/L</div>
             </div>
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Avg. Trip Distance</span>
+              <span className="text-[11px] text-slate-400">{t('avg_trip_dist_stat', 'Avg. Trip Distance')}</span>
               <div className="text-2xl font-black text-cyan-400 mt-1 font-mono">
                 {formatNumber(dashboardStats?.avg_trip_distance_km ?? dashboardStats?.fuel_estimation?.avg_trip_distance_km ?? 0)} <span className="text-sm">KM</span>
               </div>
               <div className="text-[10px] text-cyan-400 mt-0.5">Month: {formatNumber(dashboardStats?.month_avg_trip_distance_km || 0)} KM/trip</div>
             </div>
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Total Distance</span>
+              <span className="text-[11px] text-slate-400">{t('total_dist_stat', 'Total Distance')}</span>
               <div className="text-2xl font-black text-white mt-1">
                 {formatNumber(dashboardStats?.fuel_estimation?.total_distance_km || 0)} KM
               </div>
               <div className="text-[10px] text-slate-500 mt-0.5">Month: {formatNumber(dashboardStats?.fuel_estimation?.month_distance_km || 0)} KM</div>
             </div>
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Total Fuel Volume</span>
+              <span className="text-[11px] text-slate-400">{t('total_fuel_vol_stat', 'Total Fuel Volume')}</span>
               <div className="text-2xl font-black text-purple-400 mt-1">
                 {formatNumber(dashboardStats?.fuel_estimation?.total_fuel_liters || 0)} L
               </div>
               <div className="text-[10px] text-slate-500 mt-0.5">Spend: {formatCurrency(dashboardStats?.fuel_estimation?.total_fuel_cost || 0)}</div>
             </div>
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
-              <span className="text-[11px] text-slate-400">Effective Cost Per KM</span>
+              <span className="text-[11px] text-slate-400">{t('effective_cost_per_km', 'Effective Cost Per KM')}</span>
               <div className="text-2xl font-black text-emerald-400 mt-1">
                 {formatCurrency(dashboardStats?.fuel_estimation?.cost_per_km || 0)}
               </div>
@@ -264,25 +264,25 @@ export const ReportsView = () => {
           <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden">
             <div className="p-4 border-b border-slate-800 flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-sm text-white">Truck Fuel Efficiency Matrix</h3>
-                <p className="text-xs text-slate-400">Cross-analyzing approved fuel advances against verified odometer distance</p>
+                <h3 className="font-bold text-sm text-white">{t('truck_fuel_efficiency_matrix', 'Truck Fuel Efficiency Matrix')}</h3>
+                <p className="text-xs text-slate-400">{t('cross_analyzing_sub', 'Cross-analyzing approved fuel advances against verified odometer distance')}</p>
               </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="py-3 px-3">Truck Plate</th>
-                    <th className="py-3 px-3">Model</th>
-                    <th className="py-3 px-3">Driver</th>
-                    <th className="py-3 px-3">Month KM</th>
-                    <th className="py-3 px-3">Total KM</th>
-                    <th className="py-3 px-3">Month Fuel (L)</th>
-                    <th className="py-3 px-3">Total Fuel (L)</th>
-                    <th className="py-3 px-3">L / 100km</th>
-                    <th className="py-3 px-3">Cost / KM</th>
-                    <th className="py-3 px-3">Economy</th>
-                    <th className="py-3 px-3">Status</th>
+                    <th className="py-3 px-3">{t('odo_col_truck', 'Truck Plate')}</th>
+                    <th className="py-3 px-3">{t('truck_model_col', 'Model')}</th>
+                    <th className="py-3 px-3">{t('driver', 'Driver')}</th>
+                    <th className="py-3 px-3">{t('col_month_km', 'Month KM')}</th>
+                    <th className="py-3 px-3">{t('col_total_km', 'Total KM')}</th>
+                    <th className="py-3 px-3">{t('month_fuel_l_header', 'Month Fuel (L)')}</th>
+                    <th className="py-3 px-3">{t('total_fuel_l_header', 'Total Fuel (L)')}</th>
+                    <th className="py-3 px-3">{t('col_l_per_100km', 'L / 100km')}</th>
+                    <th className="py-3 px-3">{t('cost_per_km_header', 'Cost / KM')}</th>
+                    <th className="py-3 px-3">{t('col_economy', 'Economy')}</th>
+                    <th className="py-3 px-3">{t('status', 'Status')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
@@ -328,15 +328,15 @@ export const ReportsView = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="py-3 px-3">Truck Plate</th>
-                  <th className="py-3 px-3">Model</th>
-                  <th className="py-3 px-3">Assigned Driver</th>
-                  <th className="py-3 px-3">Trips</th>
-                  <th className="py-3 px-3">Tons Hauled</th>
-                  <th className="py-3 px-3">Revenue</th>
-                  <th className="py-3 px-3">Fuel Cost</th>
-                  <th className="py-3 px-3">Other Expenses</th>
-                  <th className="py-3 px-3">Net Profit</th>
+                  <th className="py-3 px-3">{t('odo_col_truck', 'Truck Plate')}</th>
+                  <th className="py-3 px-3">{t('truck_model_col', 'Model')}</th>
+                  <th className="py-3 px-3">{t('truck_assigned_driver', 'Assigned Driver')}</th>
+                  <th className="py-3 px-3">{t('driver_trips_kpi', 'Trips')}</th>
+                  <th className="py-3 px-3">{t('tons_hauled_header', 'Tons Hauled')}</th>
+                  <th className="py-3 px-3">{t('driver_rev_kpi', 'Revenue')}</th>
+                  <th className="py-3 px-3">{t('fuel_cost_header', 'Fuel Cost')}</th>
+                  <th className="py-3 px-3">{t('col_other_expenses', 'Other Expenses')}</th>
+                  <th className="py-3 px-3">{t('net_profit_header', 'Net Profit')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -366,14 +366,14 @@ export const ReportsView = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="py-3 px-3">Driver Name</th>
-                  <th className="py-3 px-3">Driver #</th>
-                  <th className="py-3 px-3">Assigned Truck</th>
-                  <th className="py-3 px-3">Trips Count</th>
-                  <th className="py-3 px-3">Total Tons</th>
-                  <th className="py-3 px-3">Gross Revenue</th>
-                  <th className="py-3 px-3">Fuel Advances</th>
-                  <th className="py-3 px-3">Driver Profitability</th>
+                  <th className="py-3 px-3">{t('driver_name_col', 'Driver Name')}</th>
+                  <th className="py-3 px-3">{t('driver_field_colon', 'Driver #')}</th>
+                  <th className="py-3 px-3">{t('assigned_truck_col', 'Assigned Truck')}</th>
+                  <th className="py-3 px-3">{t('col_trips_count', 'Trips Count')}</th>
+                  <th className="py-3 px-3">{t('total_tons_col', 'Total Tons')}</th>
+                  <th className="py-3 px-3">{t('fee_gross_revenue', 'Gross Revenue')}</th>
+                  <th className="py-3 px-3">{t('fuel_advances_col', 'Fuel Advances')}</th>
+                  <th className="py-3 px-3">{t('driver_profitability', 'Driver Profitability')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -402,10 +402,10 @@ export const ReportsView = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="py-3 px-3">Material Type</th>
-                  <th className="py-3 px-3">Total Quantity Hauled</th>
-                  <th className="py-3 px-3">Trips Count</th>
-                  <th className="py-3 px-3">Total Revenue</th>
+                  <th className="py-3 px-3">{t('col_material_type', 'Material Type')}</th>
+                  <th className="py-3 px-3">{t('col_total_qty_hauled', 'Total Quantity Hauled')}</th>
+                  <th className="py-3 px-3">{t('col_trips_count', 'Trips Count')}</th>
+                  <th className="py-3 px-3">{t('total_route_revenue', 'Total Revenue')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -430,11 +430,11 @@ export const ReportsView = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="py-3 px-3">Hauling Route</th>
-                  <th className="py-3 px-3">Trips Completed</th>
-                  <th className="py-3 px-3">Quantity Hauled</th>
-                  <th className="py-3 px-3">Total Route Revenue</th>
-                  <th className="py-3 px-3">Effective Average Rate</th>
+                  <th className="py-3 px-3">{t('hauling_route', 'Hauling Route')}</th>
+                  <th className="py-3 px-3">{t('col_trips_completed', 'Trips Completed')}</th>
+                  <th className="py-3 px-3">{t('col_quantity_hauled', 'Quantity Hauled')}</th>
+                  <th className="py-3 px-3">{t('total_route_revenue', 'Total Route Revenue')}</th>
+                  <th className="py-3 px-3">{t('col_effective_avg_rate', 'Effective Average Rate')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">

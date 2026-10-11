@@ -107,7 +107,7 @@ You can use the 1-click demo switcher in the header or login manually with:
 
 | Role | Email | Password | Assigned Truck |
 |---|---|---|---|
-| **Fleet Manager (Admin)** | `admin@fleet.com` | `admin123` | Full Fleet Oversight |
+| **Fleet Manager (Admin)** | `soneschool1@gmail.com` | `sone@7151` | Full Fleet Oversight |
 | **Driver 1 (John Doe)** | `john@fleet.com` | `driver123` | Sinotruk Howo 371 (`ET-3-12345`) |
 | **Driver 2 (Ahmed Mohammed)** | `ahmed@fleet.com` | `driver123` | Isuzu FSR 15T (`ET-3-67890`) |
 

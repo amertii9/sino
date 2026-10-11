@@ -120,14 +120,14 @@ export const ExpensesManagement = () => {
   };
 
   const handleDeductEicNow = async () => {
-    if (!confirm('Execute monthly EIC insurance deduction of ' + formatCurrency(eicData?.monthly_amount || 150000) + ' now?')) return;
+    if (!confirm(t('confirm_exec_eic_deduction', 'Execute monthly EIC insurance deduction now?'))) return;
     setEicActionLoading(true);
     try {
       const res = await api.post('/expenses/recurring/eic/deduct-now');
       await Promise.all([loadData(), loadEicData()]);
-      alert(res.message || 'EIC insurance expense successfully deducted and recorded!');
+      alert(res.message || t('eic_deducted_success', 'EIC insurance expense successfully deducted and recorded!'));
     } catch (err) {
-      alert('Failed to execute deduction: ' + err.message);
+      alert(err.message);
     } finally {
       setEicActionLoading(false);
     }
@@ -237,12 +237,12 @@ export const ExpensesManagement = () => {
   };
 
   const handleDeleteExpense = async (exp) => {
-    if (!confirm(`Are you sure you want to permanently delete Expense #${exp.expense_number}?`)) return;
+    if (!confirm(t('confirm_delete_expense_msg', 'Are you sure you want to permanently delete this expense?'))) return;
     try {
       await api.delete(`/expenses/${exp.id}`);
       loadData();
     } catch (err) {
-      alert('Delete failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -332,7 +332,7 @@ export const ExpensesManagement = () => {
             title="EIC 2-Year Recurring Auto-Deduction Controls"
           >
             <Shield className="w-4 h-4 text-blue-300" />
-            <span className="hidden sm:inline">EIC Auto-Payment:</span>
+            <span className="hidden sm:inline">{t('eic_auto_payment_label', 'EIC Auto-Payment:')}</span>
             <span className="font-mono text-blue-200">{formatCurrency(eicData?.monthly_amount || 150000)}/mo</span>
             <span
               className={`w-2.5 h-2.5 rounded-full ${
@@ -381,7 +381,7 @@ export const ExpensesManagement = () => {
         <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl">
           <span className="text-xs text-slate-400">{t('exp_tab_fleet', 'Fleet Operations Overhead')}</span>
           <div className="text-2xl font-black text-slate-200">{formatCurrency(totalFleetOverhead)}</div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block">Tires, maintenance, oil, advance, etc.</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block">{t('tires_maint_oil_desc', 'Tires, maintenance, oil, advance, etc.')}</span>
         </div>
       </div>
 
@@ -411,24 +411,24 @@ export const ExpensesManagement = () => {
             </div>
 
             <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-              <span>Ethiopian Insurance Corporation (EIC)</span>
+              <span>{t('eic_company_name', 'Ethiopian Insurance Corporation (EIC)')}</span>
               <span className="text-blue-400 font-mono text-sm sm:text-base font-bold">
                 {formatCurrency(eicData?.monthly_amount || 150000)} / Month
               </span>
             </h3>
 
             <p className="text-xs text-slate-300 max-w-2xl">
-              Automatic monthly deduction on the 1st day of the month for 2 years (24 installments). Automatically debited into operational expenses and financial reports.
+              {t('eic_auto_deduction_sub', 'Automatic monthly deduction on the 1st day of the month for 2 years (24 installments). Automatically debited into operational expenses and financial reports.')}
             </p>
 
             {/* Progress Bar & Counter */}
             <div className="pt-2 max-w-xl space-y-1.5">
               <div className="flex justify-between text-xs font-semibold text-slate-300">
                 <span>
-                  Progress: <strong className="text-blue-300 font-mono">Month {eicData?.paid_months || 0} of {eicData?.total_months || 24} Paid</strong>
+                  {t('progress_label', 'Progress')}: <strong className="text-blue-300 font-mono">{t('month_x_of_y_paid', `Month ${eicData?.paid_months || 0} of {eicData?.total_months || 24} Paid`).replace('{paid}', eicData?.paid_months || 0).replace('{total}', eicData?.total_months || 24)}</strong>
                 </span>
                 <span className="text-slate-400 font-mono text-[11px]">
-                  {formatCurrency(eicData?.total_paid_so_far || 0)} paid · {formatCurrency(eicData?.remaining_balance || 0)} remaining
+                  {formatCurrency(eicData?.total_paid_so_far || 0)} {t('paid_col', 'paid')} · {formatCurrency(eicData?.remaining_balance || 0)} {t('remaining_balance', 'remaining')}
                 </span>
               </div>
               <div className="w-full bg-slate-800/90 rounded-full h-2.5 overflow-hidden border border-slate-700/60">
@@ -523,7 +523,7 @@ export const ExpensesManagement = () => {
         <div className="w-full sm:w-72">
           <input
             type="text"
-            placeholder="Search expense #, plate, trip, notes..."
+            placeholder={t('ph_search_expenses', 'Search expense #, plate, trip, notes...')}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
@@ -537,22 +537,22 @@ export const ExpensesManagement = () => {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
               <tr>
-                <th className="py-3 px-3">Expense #</th>
-                <th className="py-3 px-3">Date</th>
-                <th className="py-3 px-3">Category</th>
-                <th className="py-3 px-3">Truck Plate</th>
-                <th className="py-3 px-3">Amount</th>
-                <th className="py-3 px-3">Description</th>
-                <th className="py-3 px-3">Receipt #</th>
-                <th className="py-3 px-3">Status</th>
-                <th className="py-3 px-3 text-right">Actions</th>
+                <th className="py-3 px-3">{t('expense_hash', 'Expense #')}</th>
+                <th className="py-3 px-3">{t('date', 'Date')}</th>
+                <th className="py-3 px-3">{t('col_category', 'Category')}</th>
+                <th className="py-3 px-3">{t('odo_col_truck', 'Truck Plate')}</th>
+                <th className="py-3 px-3">{t('col_amount', 'Amount')}</th>
+                <th className="py-3 px-3">{t('col_description', 'Description')}</th>
+                <th className="py-3 px-3">{t('receipt_ref_col_header', 'Receipt #')}</th>
+                <th className="py-3 px-3">{t('status', 'Status')}</th>
+                <th className="py-3 px-3 text-right">{t('actions', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
               {filteredExpenses.length === 0 ? (
                 <tr>
                   <td colSpan="9" className="py-8 text-center text-slate-400">
-                    No expense records found matching current filter.
+                    {t('no_expense_records_match', 'No expense records found matching current filter.')}
                   </td>
                 </tr>
               ) : (
@@ -579,7 +579,7 @@ export const ExpensesManagement = () => {
                       <td className="py-3 px-3">
                         <div className="font-black text-red-400">{formatCurrency(e.amount)}</div>
                         {tripLinked && (
-                          <span className="text-[10px] text-amber-400 font-medium block">Deducted from Trip</span>
+                          <span className="text-[10px] text-amber-400 font-medium block">{t('deducted_from_trip', 'Deducted from Trip')}</span>
                         )}
                       </td>
                       <td className="py-3 px-3 text-slate-300 max-w-xs truncate">{e.description}</td>
@@ -595,7 +595,7 @@ export const ExpensesManagement = () => {
                         <button
                           onClick={() => openEditModal(e)}
                           className="p-1.5 bg-slate-800 hover:bg-amber-500/20 text-amber-400 rounded-lg border border-slate-700 inline-block"
-                          title="Edit Expense"
+                          title={t('view_edit', 'Edit Expense')}
                         >
                           <Edit className="w-3.5 h-3.5" />
                         </button>
@@ -604,7 +604,7 @@ export const ExpensesManagement = () => {
                           <button
                             onClick={() => setCancelModal({ open: true, exp: e, reason: '' })}
                             className="p-1.5 text-red-400 hover:bg-red-500/20 rounded-lg inline-block"
-                            title="Void / Cancel Expense"
+                            title={t('void_cancel_expense', 'Void / Cancel Expense')}
                           >
                             <Ban className="w-3.5 h-3.5" />
                           </button>
@@ -613,7 +613,7 @@ export const ExpensesManagement = () => {
                         <button
                           onClick={() => handleDeleteExpense(e)}
                           className="p-1.5 bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 inline-block"
-                          title="Delete Expense Permanently"
+                          title={t('delete_permanently_btn', 'Delete Expense Permanently')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -650,7 +650,7 @@ export const ExpensesManagement = () => {
             <form onSubmit={handleSaveExpense} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Expense Category:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('expense_category_field', 'Expense Category:')}</label>
                   <select
                     value={formData.expense_type}
                     onChange={e => setFormData({ ...formData, expense_type: e.target.value })}
@@ -663,7 +663,7 @@ export const ExpensesManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Amount (ETB):</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('amount_etb_field', 'Amount (ETB):')}</label>
                   <input
                     type="number"
                     step="any"
@@ -677,14 +677,14 @@ export const ExpensesManagement = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Truck:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('truck_field_label', 'Truck:')}</label>
                   <select
                     value={formData.truck_id}
                     onChange={e => setFormData({ ...formData, truck_id: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                     required
                   >
-                    <option value="">Select Truck</option>
+                    <option value="">{t('select_truck_opt', 'Select Truck')}</option>
                     {trucks.map(t => (
                       <option key={t.id} value={t.id}>{t.plate_number} ({t.model})</option>
                     ))}
@@ -692,13 +692,13 @@ export const ExpensesManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Driver (Optional):</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('driver_optional_field', 'Driver (Optional):')}</label>
                   <select
                     value={formData.driver_id}
                     onChange={e => setFormData({ ...formData, driver_id: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                   >
-                    <option value="">None / Company Wide</option>
+                    <option value="">{t('company_wide_opt', 'None / Company Wide')}</option>
                     {drivers.map(d => (
                       <option key={d.id} value={d.user_id}>{d.full_name}</option>
                     ))}
@@ -707,10 +707,10 @@ export const ExpensesManagement = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Description:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('description_field_label', 'Description:')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. 2 new front drive tires (Michelin 315/80R22.5)"
+                  placeholder={t('tire_expense_sample_ph', 'e.g. 2 new front drive tires (Michelin 315/80R22.5)')}
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -719,10 +719,10 @@ export const ExpensesManagement = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Receipt / Reference #:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('receipt_ref_col_header', 'Receipt / Reference #:')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. RCP-49182"
+                  placeholder={t('ph_receipt_ref_example', 'e.g. RCP-49182')}
                   value={formData.receipt_number}
                   onChange={e => setFormData({ ...formData, receipt_number: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -735,13 +735,13 @@ export const ExpensesManagement = () => {
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 text-xs text-slate-400 hover:text-white"
                 >
-                  Cancel
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-md"
                 >
-                  {editingExpense ? 'Save Changes' : 'Record Expense'}
+                  {editingExpense ? t('save_changes', 'Save Changes') : t('btn_record_expense', 'Record Expense')}
                 </button>
               </div>
             </form>
@@ -753,13 +753,13 @@ export const ExpensesManagement = () => {
       {cancelModal.open && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-red-500/40 rounded-3xl max-w-sm w-full p-5 space-y-4">
-            <h3 className="font-bold text-base text-white">Void / Cancel Expense</h3>
+            <h3 className="font-bold text-base text-white">{t('void_cancel_expense', 'Void / Cancel Expense')}</h3>
             <p className="text-xs text-slate-300">
-              Transaction will be marked as cancelled and preserved for financial audit.
+              {t('void_expense_audit_notice', 'Transaction will be marked as cancelled and preserved for financial audit.')}
             </p>
             <textarea
               rows="3"
-              placeholder="Reason for cancellation"
+              placeholder={t('cancellation_reason_ph', 'Reason for cancellation')}
               value={cancelModal.reason}
               onChange={e => setCancelModal({ ...cancelModal, reason: e.target.value })}
               className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white resize-none"
@@ -812,25 +812,25 @@ export const ExpensesManagement = () => {
             {/* Quick Metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60">
-                <span className="text-[10px] text-slate-400 block font-semibold">Monthly Amount</span>
+                <span className="text-[10px] text-slate-400 block font-semibold">{t('monthly_amount_stat', 'Monthly Amount')}</span>
                 <span className="text-sm sm:text-base font-black text-blue-300 font-mono">
                   {formatCurrency(eicData?.monthly_amount || 150000)}
                 </span>
               </div>
               <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60">
-                <span className="text-[10px] text-slate-400 block font-semibold">Installments</span>
+                <span className="text-[10px] text-slate-400 block font-semibold">{t('installments_stat', 'Installments')}</span>
                 <span className="text-sm sm:text-base font-black text-emerald-400 font-mono">
                   {eicData?.paid_months || 0} / {eicData?.total_months || 24}
                 </span>
               </div>
               <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60">
-                <span className="text-[10px] text-slate-400 block font-semibold">Total Paid</span>
+                <span className="text-[10px] text-slate-400 block font-semibold">{t('total_paid_stat', 'Total Paid')}</span>
                 <span className="text-sm sm:text-base font-black text-white font-mono">
                   {formatCurrency(eicData?.total_paid_so_far || 0)}
                 </span>
               </div>
               <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60">
-                <span className="text-[10px] text-slate-400 block font-semibold">Remaining</span>
+                <span className="text-[10px] text-slate-400 block font-semibold">{t('remaining_stat', 'Remaining')}</span>
                 <span className="text-sm sm:text-base font-black text-amber-300 font-mono">
                   {formatCurrency(eicData?.remaining_balance || 0)}
                 </span>
@@ -841,12 +841,12 @@ export const ExpensesManagement = () => {
             <form onSubmit={handleSaveEicSettings} className="space-y-4 text-xs">
               <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60 space-y-3">
                 <h4 className="font-bold text-slate-200 text-xs flex items-center gap-2">
-                  <Sliders className="w-4 h-4 text-amber-400" /> Deduction Schedule Parameters
+                  <Sliders className="w-4 h-4 text-amber-400" /> {t('deduction_schedule_params', 'Deduction Schedule Parameters')}
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-300 mb-1 font-semibold">Monthly Deduction (ETB):</label>
+                    <label className="block text-slate-300 mb-1 font-semibold">{t('monthly_deduction_field', 'Monthly Deduction (ETB):')}</label>
                     <input
                       type="number"
                       step="any"
@@ -858,7 +858,7 @@ export const ExpensesManagement = () => {
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 mb-1 font-semibold">Total Duration (Months):</label>
+                    <label className="block text-slate-300 mb-1 font-semibold">{t('total_duration_months_field', 'Total Duration (Months):')}</label>
                     <input
                       type="number"
                       required
@@ -866,11 +866,11 @@ export const ExpensesManagement = () => {
                       onChange={e => setEicForm({ ...eicForm, total_months: e.target.value })}
                       className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono"
                     />
-                    <span className="text-[10px] text-slate-400">24 months = 2 Years</span>
+                    <span className="text-[10px] text-slate-400">{t('months_24_sub', '24 months = 2 Years')}</span>
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 mb-1 font-semibold">Deduction Day of Month:</label>
+                    <label className="block text-slate-300 mb-1 font-semibold">{t('deduction_day_field', 'Deduction Day of Month:')}</label>
                     <input
                       type="number"
                       min="1"
@@ -880,24 +880,24 @@ export const ExpensesManagement = () => {
                       onChange={e => setEicForm({ ...eicForm, deduction_day: e.target.value })}
                       className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono"
                     />
-                    <span className="text-[10px] text-slate-400">Set to 1 (first day of the month)</span>
+                    <span className="text-[10px] text-slate-400">{t('set_to_1_sub', 'Set to 1 (first day of the month)')}</span>
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 mb-1 font-semibold">Schedule Status:</label>
+                    <label className="block text-slate-300 mb-1 font-semibold">{t('schedule_status_label', 'Schedule Status:')}</label>
                     <select
                       value={eicForm.status}
                       onChange={e => setEicForm({ ...eicForm, status: e.target.value, enabled: e.target.value === 'active' })}
                       className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold"
                     >
-                      <option value="active">Active (Auto-deduct every month)</option>
-                      <option value="paused">Paused (Hold auto-deduction)</option>
+                      <option value="active">{t('active_auto_deduct_opt', 'Active (Auto-deduct every month)')}</option>
+                      <option value="paused">{t('paused_hold_opt', 'Paused (Hold auto-deduction)')}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Description / Label:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('desc_label_field', 'Description / Label:')}</label>
                   <input
                     type="text"
                     value={eicForm.description}
@@ -915,7 +915,7 @@ export const ExpensesManagement = () => {
                   disabled={eicActionLoading}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
-                  <Clock className="w-3.5 h-3.5" /> Deduct Now for Current Month
+                  <Clock className="w-3.5 h-3.5" /> {t('deduct_now_btn', 'Deduct Now for Current Month')}
                 </button>
 
                 <div className="flex gap-2">
@@ -924,14 +924,14 @@ export const ExpensesManagement = () => {
                     onClick={() => setEicModalOpen(false)}
                     className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
                   >
-                    Close
+                    {t('close', 'Close')}
                   </button>
                   <button
                     type="submit"
                     disabled={eicActionLoading}
                     className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md cursor-pointer"
                   >
-                    Save EIC Settings
+                    {t('save_eic_settings_btn', 'Save EIC Settings')}
                   </button>
                 </div>
               </div>
@@ -940,13 +940,13 @@ export const ExpensesManagement = () => {
             {/* Deductions History Table */}
             <div className="space-y-2 pt-2 border-t border-slate-800">
               <h4 className="font-bold text-slate-200 text-xs flex items-center justify-between">
-                <span>Deduction History ({eicData?.history?.length || 0} Transactions)</span>
-                <span className="text-[11px] text-slate-400 font-normal">Next: {eicData?.next_deduction_date}</span>
+                <span>{t('deduction_history_title', 'Deduction History')} ({eicData?.history?.length || 0} {t('transactions_label', 'Transactions')})</span>
+                <span className="text-[11px] text-slate-400 font-normal">{t('next_label', 'Next')}: {eicData?.next_deduction_date}</span>
               </h4>
 
               <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
                 {(!eicData?.history || eicData.history.length === 0) ? (
-                  <p className="text-slate-500 text-xs italic py-2">No deduction history recorded yet.</p>
+                  <p className="text-slate-500 text-xs italic py-2">{t('no_deduction_history', 'No deduction history recorded yet.')}</p>
                 ) : (
                   eicData.history.map(item => (
                     <div
@@ -959,9 +959,9 @@ export const ExpensesManagement = () => {
                           <span>{item.description}</span>
                         </div>
                         <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                          <span>Ref: <strong className="text-slate-300 font-mono">{item.receipt_number}</strong></span>
+                          <span>{t('ref_prefix_label', 'Ref:')} <strong className="text-slate-300 font-mono">{item.receipt_number}</strong></span>
                           <span>·</span>
-                          <span>Date: {formatDate(item.date)}</span>
+                          <span>{t('date', 'Date')}: {formatDate(item.date)}</span>
                         </div>
                       </div>
                       <div className="text-right shrink-0">

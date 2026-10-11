@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"truck-fleet-backend/internal/models"
@@ -51,6 +52,17 @@ func (h *MasterDataHandler) CreateSite(c *gin.Context) {
 		return
 	}
 
+	site.Name = strings.TrimSpace(site.Name)
+	if site.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Site name is required"})
+		return
+	}
+
+	site.Location = strings.TrimSpace(site.Location)
+	if site.Location == "" {
+		site.Location = "Local Site"
+	}
+
 	site.ID = bson.NewObjectID()
 	site.CreatedAt = time.Now()
 	if site.Status == "" {
@@ -92,6 +104,15 @@ func (h *MasterDataHandler) CreateMaterial(c *gin.Context) {
 	if err := c.ShouldBindJSON(&material); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid material data: " + err.Error()})
 		return
+	}
+
+	material.Name = strings.TrimSpace(material.Name)
+	if material.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Material name is required"})
+		return
+	}
+	if material.DefaultUnit == "" {
+		material.DefaultUnit = "ton"
 	}
 
 	material.ID = bson.NewObjectID()

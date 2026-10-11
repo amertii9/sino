@@ -69,12 +69,12 @@ export const MaterialsManagement = () => {
   };
 
   const handleDelete = async (material) => {
-    if (!confirm(`Are you sure you want to delete material "${material.name}"?`)) return;
+    if (!confirm(t('confirm_delete_material', 'Are you sure you want to delete this material?'))) return;
     try {
       await api.delete(`/materials/${material.id}`);
       fetchMaterials();
     } catch (err) {
-      alert('Delete failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -164,10 +164,10 @@ export const MaterialsManagement = () => {
 
             <form onSubmit={handleSave} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Material Name:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('material_name_field_label', 'Material Name:')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. River Sand, Concrete Aggregate"
+                  placeholder={t('ph_material_name_example', 'e.g. River Sand, Concrete Aggregate')}
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -177,20 +177,20 @@ export const MaterialsManagement = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Default Unit:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('default_unit_field_label', 'Default Unit:')}</label>
                   <select
                     value={formData.default_unit}
                     onChange={e => setFormData({ ...formData, default_unit: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                   >
-                    <option value="ton">Ton</option>
-                    <option value="quintal">Quintal</option>
-                    <option value="kg">Kilogram</option>
+                    <option value="ton">{t('unit_ton_display', 'Ton')}</option>
+                    <option value="quintal">{t('unit_quintal_display', 'Quintal')}</option>
+                    <option value="kg">{t('unit_kg_display', 'Kilogram')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Base Price (ETB):</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('base_price_etb_field', 'Base Price (ETB):')}</label>
                   <input
                     type="number"
                     step="any"
@@ -203,10 +203,10 @@ export const MaterialsManagement = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Description:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('description_field_label', 'Description:')}</label>
                 <textarea
                   rows="2"
-                  placeholder="e.g. Sifted gravel aggregate for road surface"
+                  placeholder={t('ph_gravel_desc_example', 'e.g. Sifted gravel aggregate for road surface')}
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white resize-none"

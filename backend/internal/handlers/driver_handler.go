@@ -115,9 +115,10 @@ func (h *DriverHandler) CreateDriver(c *gin.Context) {
 		Phone:     input.Phone,
 		Password:  string(hashedPassword),
 		FullName:  input.FullName,
-		Role:      models.RoleDriver,
-		Status:    "active",
-		CreatedAt: time.Now(),
+		Role:              models.RoleDriver,
+		Status:            "active",
+		PreferredLanguage: "om",
+		CreatedAt:         time.Now(),
 		UpdatedAt: time.Now(),
 	}
 

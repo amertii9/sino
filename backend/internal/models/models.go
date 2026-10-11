@@ -21,8 +21,9 @@ type User struct {
 	FullName  string        `bson:"full_name" json:"full_name"`
 	Role      UserRole      `bson:"role" json:"role"`
 	Status    string        `bson:"status" json:"status"` // "active", "inactive"
-	Avatar    string        `bson:"avatar" json:"avatar"`
-	CreatedAt time.Time     `bson:"created_at" json:"created_at"`
+	Avatar            string        `bson:"avatar" json:"avatar"`
+	PreferredLanguage string        `bson:"preferred_language,omitempty" json:"preferred_language,omitempty"`
+	CreatedAt         time.Time     `bson:"created_at" json:"created_at"`
 	UpdatedAt time.Time     `bson:"updated_at" json:"updated_at"`
 }
 
@@ -104,6 +105,10 @@ type Route struct {
 	MaterialName        string        `bson:"material_name" json:"material_name"`
 	DefaultPrice        float64       `bson:"default_price" json:"default_price"`
 	PricingMethod       string        `bson:"pricing_method" json:"pricing_method"` // "per_ton", "per_quintal", "per_kg", "lump_sum"
+	LumpSum              float64       `bson:"lump_sum,omitempty" json:"lump_sum,omitempty"`
+	TransitPrice         float64       `bson:"transit_price,omitempty" json:"transit_price,omitempty"`
+	TransitPricingMethod string        `bson:"transit_pricing_method,omitempty" json:"transit_pricing_method,omitempty"`
+	TransitLumpSum       float64       `bson:"transit_lump_sum,omitempty" json:"transit_lump_sum,omitempty"`
 	Status              string        `bson:"status" json:"status"`
 	CreatedAt           time.Time     `bson:"created_at" json:"created_at"`
 }
@@ -133,9 +138,33 @@ type Trip struct {
 	Quantity            float64       `bson:"quantity" json:"quantity"`
 	Unit                string        `bson:"unit" json:"unit"`             // "kg", "quintal", "ton"
 	QuantityKg          float64       `bson:"quantity_kg" json:"quantity_kg"` // normalized to kg: 1 ton=1000kg, 1 quintal=100kg
-	PricingMethod       string        `bson:"pricing_method" json:"pricing_method"` // "per_kg", "per_quintal", "per_ton", "lump_sum"
-	UnitPrice           float64       `bson:"unit_price" json:"unit_price"`
-	LumpSum             float64       `bson:"lump_sum" json:"lump_sum"`
+	PricingMethod        string        `bson:"pricing_method" json:"pricing_method"` // "per_kg", "per_quintal", "per_ton", "lump_sum"
+	UnitPrice            float64       `bson:"unit_price" json:"unit_price"`
+	PricingTarget        string        `bson:"pricing_target,omitempty" json:"pricing_target,omitempty"` // "destination", "transit", "split"
+	TransitUnitPrice          float64       `bson:"transit_unit_price,omitempty" json:"transit_unit_price,omitempty"`
+	TransitUnitPriceSplit     float64       `bson:"transit_unit_price_split,omitempty" json:"transit_unit_price_split,omitempty"`
+	DestinationUnitPrice      float64       `bson:"destination_unit_price,omitempty" json:"destination_unit_price,omitempty"`
+	DestinationUnitPriceSplit float64       `bson:"destination_unit_price_split,omitempty" json:"destination_unit_price_split,omitempty"`
+	PriceDifference           float64       `bson:"price_difference,omitempty" json:"price_difference,omitempty"`
+	LumpSum              float64       `bson:"lump_sum" json:"lump_sum"`
+	DropOffLocation      string        `bson:"drop_off_location,omitempty" json:"drop_off_location,omitempty"`
+	TransitNotes         string        `bson:"transit_notes,omitempty" json:"transit_notes,omitempty"`
+	// Multi-drop / Partial Unload at Intermediate Transit Point
+	IsSplitDrop              bool    `bson:"is_split_drop" json:"is_split_drop"`
+	TransitQuantity          float64 `bson:"transit_quantity,omitempty" json:"transit_quantity"`
+	TransitUnit              string  `bson:"transit_unit,omitempty" json:"transit_unit"`
+	TransitQuantityKg        float64 `bson:"transit_quantity_kg,omitempty" json:"transit_quantity_kg"`
+	TransitPricingMethod     string  `bson:"transit_pricing_method,omitempty" json:"transit_pricing_method"` // "per_ton", "per_quintal", "per_kg", "lump_sum"
+	TransitLumpSum           float64 `bson:"transit_lump_sum,omitempty" json:"transit_lump_sum"`
+	TransitRevenue           float64 `bson:"transit_revenue,omitempty" json:"transit_revenue"`
+	TransitReceiptNumber     string  `bson:"transit_receipt_number,omitempty" json:"transit_receipt_number"`
+	DestinationQuantity      float64 `bson:"destination_quantity,omitempty" json:"destination_quantity"`
+	DestinationUnit          string  `bson:"destination_unit,omitempty" json:"destination_unit"`
+	DestinationQuantityKg    float64 `bson:"destination_quantity_kg,omitempty" json:"destination_quantity_kg"`
+	DestinationPricingMethod string  `bson:"destination_pricing_method,omitempty" json:"destination_pricing_method"` // "per_ton", "per_quintal", "per_kg", "lump_sum"
+	DestinationLumpSum       float64 `bson:"destination_lump_sum,omitempty" json:"destination_lump_sum"`
+	DestinationRevenue       float64 `bson:"destination_revenue,omitempty" json:"destination_revenue"`
+	DestinationReceiptNumber string  `bson:"destination_receipt_number,omitempty" json:"destination_receipt_number"`
 	GrossRevenue        float64       `bson:"gross_revenue" json:"gross_revenue"`
 	TotalRevenue        float64       `bson:"total_revenue" json:"total_revenue"`
 	AdditionalFees      []TripFee     `bson:"additional_fees,omitempty" json:"additional_fees,omitempty"`
@@ -184,11 +213,17 @@ type FuelRequest struct {
 	Status          string        `bson:"status" json:"status"` // "pending", "approved", "rejected", "paid"
 	Notes           string        `bson:"notes" json:"notes"`
 	AdminNote       string        `bson:"admin_note" json:"admin_note"`
-	RequestedAt     time.Time     `bson:"requested_at" json:"requested_at"`
-	ApprovedAt      *time.Time    `bson:"approved_at,omitempty" json:"approved_at,omitempty"`
-	PaidAt          *time.Time    `bson:"paid_at,omitempty" json:"paid_at,omitempty"`
-	LinkedExpenseID string        `bson:"linked_expense_id,omitempty" json:"linked_expense_id,omitempty"`
-	CreatedAt       time.Time     `bson:"created_at" json:"created_at"`
+	RequestedAt          time.Time     `bson:"requested_at" json:"requested_at"`
+	ApprovedAt           *time.Time    `bson:"approved_at,omitempty" json:"approved_at,omitempty"`
+	PaidAt               *time.Time    `bson:"paid_at,omitempty" json:"paid_at,omitempty"`
+	LinkedExpenseID      string        `bson:"linked_expense_id,omitempty" json:"linked_expense_id,omitempty"`
+	ReserveAction        string        `bson:"reserve_action,omitempty" json:"reserve_action"`                 // "procure" (Step 1: refill yard tank) or "draw" (Step 2: pump from yard tank into truck)
+	ReserveProcureReqID  string        `bson:"reserve_procure_req_id,omitempty" json:"reserve_procure_req_id,omitempty"` // For Step 2: references procurement refill request
+	ReserveBalanceBefore float64       `bson:"reserve_balance_before,omitempty" json:"reserve_balance_before,omitempty"`
+	ReserveBalanceAfter  float64       `bson:"reserve_balance_after,omitempty" json:"reserve_balance_after,omitempty"`
+	InventoryDeducted    bool          `bson:"inventory_deducted,omitempty" json:"inventory_deducted,omitempty"`
+	InventoryAdded       bool          `bson:"inventory_added,omitempty" json:"inventory_added,omitempty"`
+	CreatedAt            time.Time     `bson:"created_at" json:"created_at"`
 }
 
 type Expense struct {
@@ -305,20 +340,51 @@ type EICRecurringConfig struct {
 	Status            string     `bson:"status" json:"status"`                         // "active", "paused", "completed"
 }
 
+type TransitPointSuggestion struct {
+	ID                     string  `bson:"id" json:"id"`
+	Name                   string  `bson:"name" json:"name"`
+	Location               string  `bson:"location" json:"location"`
+	SuggestedRatePerTon    float64 `bson:"suggested_rate_per_ton,omitempty" json:"suggested_rate_per_ton,omitempty"`
+	SuggestedRatePerQuintal float64 `bson:"suggested_rate_per_quintal,omitempty" json:"suggested_rate_per_quintal,omitempty"`
+	SuggestedRatePerKg     float64 `bson:"suggested_rate_per_kg,omitempty" json:"suggested_rate_per_kg,omitempty"`
+	SuggestedLumpSum       float64 `bson:"suggested_lump_sum,omitempty" json:"suggested_lump_sum,omitempty"`
+	DefaultPricingMethod   string  `bson:"default_pricing_method,omitempty" json:"default_pricing_method,omitempty"` // "per_ton", "per_quintal", "per_kg", "lump_sum"
+	Notes                  string  `bson:"notes,omitempty" json:"notes"`
+}
+
+type DestinationRateSuggestion struct {
+	ID                     string  `bson:"id" json:"id"`
+	Name                   string  `bson:"name" json:"name"`
+	Location               string  `bson:"location" json:"location"`
+	SuggestedRatePerTon    float64 `bson:"suggested_rate_per_ton,omitempty" json:"suggested_rate_per_ton,omitempty"`
+	SuggestedRatePerQuintal float64 `bson:"suggested_rate_per_quintal,omitempty" json:"suggested_rate_per_quintal,omitempty"`
+	SuggestedRatePerKg     float64 `bson:"suggested_rate_per_kg,omitempty" json:"suggested_rate_per_kg,omitempty"`
+	SuggestedLumpSum       float64 `bson:"suggested_lump_sum,omitempty" json:"suggested_lump_sum,omitempty"`
+	DefaultPricingMethod   string  `bson:"default_pricing_method,omitempty" json:"default_pricing_method,omitempty"` // "per_ton", "per_quintal", "per_kg", "lump_sum"
+	Notes                  string  `bson:"notes,omitempty" json:"notes"`
+}
+
 type Settings struct {
-	ID                     bson.ObjectID                `bson:"_id,omitempty" json:"id"`
-	CompanyName            string                       `bson:"company_name" json:"company_name"`
-	CompanyLogo            string                       `bson:"company_logo" json:"company_logo"`
-	Currency               string                       `bson:"currency" json:"currency"`         // Default "ETB"
-	DefaultUnit            string                       `bson:"default_unit" json:"default_unit"` // Default "ton"
-	CompanyPhone           string                       `bson:"company_phone" json:"company_phone"`
-	CompanyEmail           string                       `bson:"company_email" json:"company_email"`
-	DieselPrice            float64                      `bson:"diesel_price" json:"diesel_price"` // Default 100 ETB / Liter
-	FeeSuggestions         []FeeSuggestion              `bson:"fee_suggestions,omitempty" json:"fee_suggestions,omitempty"`
-	FuelLitersPresets      []float64                    `bson:"fuel_liters_presets,omitempty" json:"fuel_liters_presets,omitempty"`
-	MaintenanceSuggestions []MaintenanceIssueSuggestion `bson:"maintenance_suggestions,omitempty" json:"maintenance_suggestions,omitempty"`
-	EICRecurring           *EICRecurringConfig          `bson:"eic_recurring,omitempty" json:"eic_recurring,omitempty"`
-	UpdatedAt              time.Time                    `bson:"updated_at" json:"updated_at"`
+	ID                         bson.ObjectID                `bson:"_id,omitempty" json:"id"`
+	CompanyName                string                       `bson:"company_name" json:"company_name"`
+	CompanyLogo                string                       `bson:"company_logo" json:"company_logo"`
+	Currency                   string                       `bson:"currency" json:"currency"`         // Default "ETB"
+	DefaultUnit                string                       `bson:"default_unit" json:"default_unit"` // Default "ton"
+	CompanyPhone               string                       `bson:"company_phone" json:"company_phone"`
+	CompanyEmail               string                       `bson:"company_email" json:"company_email"`
+	DieselPrice                float64                      `bson:"diesel_price" json:"diesel_price"` // Default 100 ETB / Liter
+	FeeSuggestions             []FeeSuggestion              `bson:"fee_suggestions,omitempty" json:"fee_suggestions,omitempty"`
+	FuelLitersPresets          []float64                    `bson:"fuel_liters_presets,omitempty" json:"fuel_liters_presets,omitempty"`
+	MaintenanceSuggestions     []MaintenanceIssueSuggestion `bson:"maintenance_suggestions,omitempty" json:"maintenance_suggestions,omitempty"`
+	TransitPointSuggestions    []TransitPointSuggestion     `bson:"transit_point_suggestions,omitempty" json:"transit_point_suggestions,omitempty"`
+	DestinationRateSuggestions []DestinationRateSuggestion `bson:"destination_rate_suggestions,omitempty" json:"destination_rate_suggestions,omitempty"`
+	EICRecurring               *EICRecurringConfig          `bson:"eic_recurring,omitempty" json:"eic_recurring,omitempty"`
+	ReserveFuelBalanceLiters   float64                      `bson:"reserve_fuel_balance_liters" json:"reserve_fuel_balance_liters"`     // Remaining yard tank stock in Liters
+	ReserveFuelCapacityLiters  float64                      `bson:"reserve_fuel_capacity_liters" json:"reserve_fuel_capacity_liters"`   // Yard tank maximum capacity in Liters (e.g. 10000 L)
+	ReserveFuelLowThreshold    float64                      `bson:"reserve_fuel_low_threshold" json:"reserve_fuel_low_threshold"`       // Threshold for low inventory warning (e.g. 1500 L)
+	DriverWelcomeMessage       string                       `bson:"driver_welcome_message,omitempty" json:"driver_welcome_message,omitempty"`
+	WelcomeMessageSuggestions  []string                     `bson:"welcome_message_suggestions,omitempty" json:"welcome_message_suggestions,omitempty"`
+	UpdatedAt                  time.Time                    `bson:"updated_at" json:"updated_at"`
 }
 
 type LoginRequest struct {

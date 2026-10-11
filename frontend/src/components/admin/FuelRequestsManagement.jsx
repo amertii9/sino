@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/client';
 import { useLanguage } from '../../context/LanguageContext';
-import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
+import { formatCurrency, formatDate, formatDateTime, formatNumber } from '../../utils/formatters';
 import {
   Fuel,
   CheckCircle,
@@ -16,7 +16,12 @@ import {
   Trash2,
   Plus,
   X,
-  Save
+  Save,
+  Gauge,
+  Sliders,
+  Layers,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 
 export const FuelRequestsManagement = () => {
@@ -27,6 +32,24 @@ export const FuelRequestsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending'); // 'pending', 'approved', 'paid', 'all'
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Reserve Fuel Inventory
+  const [reserveInventory, setReserveInventory] = useState({
+    balance_liters: 5000,
+    capacity_liters: 10000,
+    low_threshold_liters: 1500,
+    percentage: 50,
+    status: 'healthy',
+    recent_procurements: [],
+    recent_draws: []
+  });
+  const [calibrateModalOpen, setCalibrateModalOpen] = useState(false);
+  const [calibrateForm, setCalibrateForm] = useState({
+    balance_liters: 5000,
+    capacity_liters: 10000,
+    low_threshold: 1500,
+    reason: 'Routine physical dipstick measurement calibration'
+  });
 
   // Modals
   const [approveModal, setApproveModal] = useState({ open: false, req: null, amount: 0, note: '' });
@@ -53,17 +76,27 @@ export const FuelRequestsManagement = () => {
 
   const fetchFuelData = async () => {
     try {
-      const [reqData, truckData, driverData, settingsData] = await Promise.all([
+      const [reqData, truckData, driverData, settingsData, invData] = await Promise.all([
         api.get('/fuel-requests'),
         api.get('/trucks').catch(() => []),
         api.get('/drivers').catch(() => []),
         api.get('/settings').catch(() => null),
+        api.get('/fuel-requests/reserve-inventory').catch(() => null),
       ]);
       setRequests(reqData || []);
       setTrucks(truckData || []);
       setDrivers(driverData || []);
       if (settingsData?.fuel_liters_presets && settingsData.fuel_liters_presets.length > 0) {
         setAdminFuelPresets(settingsData.fuel_liters_presets);
+      }
+      if (invData) {
+        setReserveInventory(invData);
+        setCalibrateForm({
+          balance_liters: invData.balance_liters,
+          capacity_liters: invData.capacity_liters,
+          low_threshold: invData.low_threshold_liters,
+          reason: 'Routine physical dipstick measurement calibration'
+        });
       }
     } catch (err) {
       console.error(err);
@@ -77,25 +110,27 @@ export const FuelRequestsManagement = () => {
   }, []);
 
   const handleApprove = async () => {
-    if (!approveModal.amount || approveModal.amount <= 0) {
-      alert('Please enter a valid approved amount');
+    const isStep2Draw = approveModal.req?.fuel_source === 'reserve_fuel' && approveModal.req?.reserve_action === 'draw';
+    const approvedAmt = parseFloat(approveModal.amount) || 0;
+    if (!isStep2Draw && approvedAmt <= 0) {
+      alert(t('enter_valid_approved_amount', 'Please enter a valid approved amount'));
       return;
     }
     try {
       await api.patch(`/fuel-requests/${approveModal.req.id}/approve`, {
-        amount_approved: parseFloat(approveModal.amount),
+        amount_approved: approvedAmt,
         admin_note: approveModal.note,
       });
       setApproveModal({ open: false, req: null, amount: 0, note: '' });
       fetchFuelData();
     } catch (err) {
-      alert('Approval failed: ' + err.message);
+      alert(err.message);
     }
   };
 
   const handleReject = async () => {
     if (!rejectModal.note.trim()) {
-      alert('Please enter a rejection reason');
+      alert(t('enter_rejection_reason', 'Please enter a rejection reason'));
       return;
     }
     try {
@@ -105,18 +140,38 @@ export const FuelRequestsManagement = () => {
       setRejectModal({ open: false, req: null, note: '' });
       fetchFuelData();
     } catch (err) {
-      alert('Rejection failed: ' + err.message);
+      alert(err.message);
     }
   };
 
-  const handleMarkPaid = async (reqId) => {
-    if (!confirm('Disburse fuel money now? This will automatically create a company fuel expense record.')) return;
+  const handleMarkPaid = async (r) => {
+    const isDraw = r.fuel_source === 'reserve_fuel' && r.reserve_action === 'draw';
+    const msg = isDraw
+      ? `Confirm completion of fuel pump from yard tank into truck ${r.truck_plate}? This will verify that ${r.liters} Liters have been dispensed.`
+      : t('confirm_disburse_fuel', 'Disburse fuel money now? This will automatically create a company fuel expense record.');
+    if (!confirm(msg)) return;
     try {
-      const res = await api.patch(`/fuel-requests/${reqId}/paid`);
-      alert(res.message || 'Marked as paid and operational expense created');
+      const res = await api.patch(`/fuel-requests/${r.id}/paid`);
+      alert(res.message);
       fetchFuelData();
     } catch (err) {
-      alert('Failed: ' + err.message);
+      alert(err.message);
+    }
+  };
+
+  const handleCalibrateReserveFuel = async (e) => {
+    e.preventDefault();
+    try {
+      await api.patch('/settings/reserve-fuel', {
+        balance_liters: parseFloat(calibrateForm.balance_liters),
+        capacity_liters: parseFloat(calibrateForm.capacity_liters),
+        low_threshold: parseFloat(calibrateForm.low_threshold),
+        reason: calibrateForm.reason,
+      });
+      setCalibrateModalOpen(false);
+      fetchFuelData();
+    } catch (err) {
+      alert('Failed to update reserve fuel settings: ' + err.message);
     }
   };
 
@@ -189,13 +244,13 @@ export const FuelRequestsManagement = () => {
   };
 
   const handleDeleteFuelRequest = async (r) => {
-    if (!confirm(`Are you sure you want to permanently delete Fuel Request #${r.request_number || ''}?`)) return;
+    if (!confirm(t('confirm_delete_fuel_request', 'Are you sure you want to permanently delete this fuel request?'))) return;
     try {
       await api.delete(`/fuel-requests/${r.id}`);
       setModalOpen(false);
       fetchFuelData();
     } catch (err) {
-      alert('Delete failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -252,6 +307,109 @@ export const FuelRequestsManagement = () => {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+        </div>
+      </div>
+
+      {/* REAL-TIME YARD RESERVE FUEL TANK INVENTORY CARD */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 flex items-center justify-center shadow-inner">
+              <Gauge className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-base text-white">
+                  {t('reserve_inventory_mgmt_title', 'Company Yard Reserve Fuel Tank')}
+                </h3>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                    reserveInventory.status === 'empty'
+                      ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse'
+                      : reserveInventory.status === 'low'
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
+                      : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                  }`}
+                >
+                  {reserveInventory.status === 'empty'
+                    ? t('reserve_stock_empty', 'Yard Tank Empty')
+                    : reserveInventory.status === 'low'
+                    ? t('reserve_stock_low', 'Low Stock Warning')
+                    : t('reserve_stock_healthy', 'In Stock / Healthy')}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                {t('reserve_inventory_mgmt_sub', 'Real-time yard stock tracking, refill procurement, and truck pump deductions')}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCalibrateModalOpen(true)}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>{t('reserve_calibrate_btn', 'Calibrate Tank Level')}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Meters & Visual Gauge */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+          <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80">
+            <div className="text-[11px] text-slate-400 font-semibold">{t('reserve_calibrate_balance', 'Current Fuel Balance')}</div>
+            <div className="text-2xl font-black text-cyan-400 font-mono mt-0.5">
+              {formatNumber(reserveInventory.balance_liters)} <span className="text-xs text-slate-400 font-bold">Liters</span>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5">
+              Available in company yard tank
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80">
+            <div className="text-[11px] text-slate-400 font-semibold">{t('reserve_calibrate_capacity', 'Total Tank Capacity')}</div>
+            <div className="text-2xl font-black text-slate-200 font-mono mt-0.5">
+              {formatNumber(reserveInventory.capacity_liters)} <span className="text-xs text-slate-400 font-bold">Liters</span>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5">
+              Full capacity fill limit
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80">
+            <div className="text-[11px] text-slate-400 font-semibold">{t('reserve_calibrate_threshold', 'Low Stock Threshold')}</div>
+            <div className="text-2xl font-black text-amber-400 font-mono mt-0.5">
+              {formatNumber(reserveInventory.low_threshold_liters)} <span className="text-xs text-slate-400 font-bold">Liters</span>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5">
+              Alert triggers below this level
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Fill Bar */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-[11px] font-mono">
+            <span className="text-slate-400">
+              Tank Stock Fill Level: <strong className="text-white">{Math.round(reserveInventory.percentage || 0)}%</strong>
+            </span>
+            <span className="text-slate-400">
+              {formatNumber(reserveInventory.balance_liters)} / {formatNumber(reserveInventory.capacity_liters)} L
+            </span>
+          </div>
+          <div className="w-full bg-slate-950 rounded-full h-3.5 overflow-hidden border border-slate-800">
+            <div
+              className={`h-full transition-all duration-500 ${
+                reserveInventory.status === 'empty'
+                  ? 'bg-red-500'
+                  : reserveInventory.status === 'low'
+                  ? 'bg-amber-500'
+                  : 'bg-gradient-to-r from-cyan-500 to-emerald-400'
+              }`}
+              style={{ width: `${Math.min(100, Math.max(0, reserveInventory.percentage || 0))}%` }}
+            />
+          </div>
         </div>
       </div>
 
@@ -348,17 +506,36 @@ export const FuelRequestsManagement = () => {
                     <td className="py-3 px-3 font-mono font-bold text-amber-400">{r.request_number}</td>
                     <td className="py-3 px-3 text-slate-400">{formatDate(r.requested_at)}</td>
                     <td className="py-3 px-3 font-bold text-slate-200">{r.driver_name}</td>
-                    <td className="py-3 px-3 font-semibold text-slate-300">{r.truck_plate}</td>
-                    <td className="py-3 px-3 font-bold text-slate-100">{formatCurrency(r.amount_requested)}</td>
+                    <td className="py-3 px-3 font-semibold text-slate-300">{r.truck_plate || '—'}</td>
+                    <td className="py-3 px-3 font-bold text-slate-100">
+                      {r.fuel_source === 'reserve_fuel' && r.reserve_action === 'draw'
+                        ? `${r.liters} L (Draw)`
+                        : formatCurrency(r.amount_requested)}
+                    </td>
                     <td className="py-3 px-3 font-black text-emerald-400">
-                      {r.amount_approved > 0 ? formatCurrency(r.amount_approved) : '-'}
+                      {r.fuel_source === 'reserve_fuel' && r.reserve_action === 'draw' ? (
+                        <div>
+                          <span className="font-mono font-bold text-purple-300">{r.liters} L</span>
+                          <div className="text-[9px] text-slate-400">Internal Dispense</div>
+                        </div>
+                      ) : r.amount_approved > 0 ? (
+                        formatCurrency(r.amount_approved)
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                         {r.fuel_source === 'reserve_fuel' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                            🛢️ {t('fuel_source_reserve', 'Reserve Fuel')}
-                          </span>
+                          r.reserve_action === 'procure' ? (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                              🛢️ {t('reserve_badge_procure', 'Step 1 • Tank Refill')}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                              🚜 {t('reserve_badge_draw', 'Step 2 • Truck Draw')}
+                            </span>
+                          )
                         ) : (
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                             ⛽ {t('fuel_source_gas', 'Gas Station')}
@@ -366,11 +543,16 @@ export const FuelRequestsManagement = () => {
                         )}
                         {r.liters > 0 && (
                           <span className="text-[10px] font-bold text-slate-200 font-mono">
-                            {r.liters} L {r.price_per_liter > 0 ? `@ ${r.price_per_liter} ETB/L` : ''}
+                            {r.liters} L {r.price_per_liter > 0 && r.reserve_action !== 'draw' ? `@ ${r.price_per_liter} ETB/L` : ''}
                           </span>
                         )}
                       </div>
                       <div className="text-slate-200">{r.reason}</div>
+                      {r.fuel_source === 'reserve_fuel' && (r.reserve_balance_before > 0 || r.reserve_balance_after > 0) && (
+                        <div className="text-[10px] text-cyan-400 font-mono">
+                          Yard Stock: {formatNumber(r.reserve_balance_before)} L → {formatNumber(r.reserve_balance_after)} L
+                        </div>
+                      )}
                       {r.odometer_reading > 0 && (
                         <div className="text-[10px] text-amber-400 font-mono">
                           {t('tab_odometer', 'Odometer')}: {r.odometer_reading} km
@@ -402,17 +584,17 @@ export const FuelRequestsManagement = () => {
                               setApproveModal({
                                 open: true,
                                 req: r,
-                                amount: r.amount_requested,
-                                note: 'Approved per standard route quota',
+                                amount: r.fuel_source === 'reserve_fuel' && r.reserve_action === 'draw' ? 0 : r.amount_requested,
+                                note: r.fuel_source === 'reserve_fuel' && r.reserve_action === 'draw' ? 'Approved internal pump from yard tank' : 'Approved per standard route quota',
                               })
                             }
-                            className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg touch-btn"
+                            className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg touch-btn cursor-pointer"
                           >
                             {t('fuel_btn_approve', 'Approve')}
                           </button>
                           <button
                             onClick={() => setRejectModal({ open: true, req: r, note: '' })}
-                            className="px-2.5 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 font-semibold rounded-lg"
+                            className="px-2.5 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 font-semibold rounded-lg cursor-pointer"
                           >
                             {t('fuel_btn_reject', 'Reject')}
                           </button>
@@ -421,10 +603,15 @@ export const FuelRequestsManagement = () => {
 
                       {r.status === 'approved' && (
                         <button
-                          onClick={() => handleMarkPaid(r.id)}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-sm touch-btn flex items-center gap-1 inline-flex"
+                          onClick={() => handleMarkPaid(r)}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-sm touch-btn flex items-center gap-1 inline-flex cursor-pointer"
                         >
-                          <DollarSign className="w-3.5 h-3.5" /> {t('fuel_btn_mark_paid', 'Disburse Cash')}
+                          <DollarSign className="w-3.5 h-3.5" />
+                          <span>
+                            {r.fuel_source === 'reserve_fuel' && r.reserve_action === 'draw'
+                              ? 'Confirm Pumped'
+                              : t('fuel_btn_mark_paid', 'Disburse Cash')}
+                          </span>
                         </button>
                       )}
 
@@ -437,7 +624,7 @@ export const FuelRequestsManagement = () => {
                       <button
                         onClick={() => openEditModal(r)}
                         className="p-1.5 bg-slate-800 hover:bg-amber-500/20 text-amber-400 rounded-lg border border-slate-700 inline-flex items-center"
-                        title="Edit Fuel Request"
+                        title={t('view_edit', 'Edit Fuel Request')}
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
@@ -445,7 +632,7 @@ export const FuelRequestsManagement = () => {
                       <button
                         onClick={() => handleDeleteFuelRequest(r)}
                         className="p-1.5 bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 inline-flex items-center"
-                        title="Delete Fuel Request"
+                        title={t('delete_permanently_btn', 'Delete Fuel Request')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -464,38 +651,81 @@ export const FuelRequestsManagement = () => {
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-5 space-y-4">
             <div className="p-3 bg-slate-800/80 rounded-xl space-y-1.5 text-xs border border-slate-700/60">
               <div className="flex justify-between">
-                <span className="text-slate-400">Fuel Source:</span>
+                <span className="text-slate-400">{t('fuel_source_label', 'Fuel Source:')}</span>
                 <span className="font-bold text-white">
-                  {approveModal.req?.fuel_source === 'reserve_fuel' ? '🛢️ Reserve Fuel' : '⛽ Gas Station'}
+                  {approveModal.req?.fuel_source === 'reserve_fuel' ? (
+                    approveModal.req?.reserve_action === 'procure'
+                      ? '🛢️ Step 1: Tank Refill'
+                      : '🚜 Step 2: Truck Draw'
+                  ) : (
+                    '⛽ Gas Station'
+                  )}
                 </span>
               </div>
               {approveModal.req?.liters > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Volume & Rate:</span>
+                  <span className="text-slate-400">{t('volume_rate_label', 'Volume & Rate:')}</span>
                   <span className="font-bold text-amber-400 font-mono">
-                    {approveModal.req.liters} L {approveModal.req.price_per_liter > 0 ? `@ ${approveModal.req.price_per_liter} ETB/L` : ''}
+                    {approveModal.req.liters} L {approveModal.req.price_per_liter > 0 && approveModal.req.reserve_action !== 'draw' ? `@ ${approveModal.req.price_per_liter} ETB/L` : ''}
                   </span>
                 </div>
               )}
               {approveModal.req?.odometer_reading > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Odometer:</span>
+                  <span className="text-slate-400">{t('odometer_field_label', 'Odometer:')}</span>
                   <span className="font-bold text-slate-200 font-mono">
                     {approveModal.req.odometer_reading} km
                   </span>
                 </div>
               )}
               <div className="flex justify-between pt-1 border-t border-slate-700">
-                <span className="text-slate-400">Total Requested:</span>
+                <span className="text-slate-400">{t('total_requested_field', 'Total Requested:')}</span>
                 <span className="font-bold text-emerald-400 font-mono">
-                  {formatCurrency(approveModal.req?.amount_requested)}
+                  {approveModal.req?.fuel_source === 'reserve_fuel' && approveModal.req?.reserve_action === 'draw'
+                    ? `${approveModal.req.liters} L (Internal Draw)`
+                    : formatCurrency(approveModal.req?.amount_requested)}
                 </span>
               </div>
             </div>
 
+            {/* Reserve Tank Impact Indicator */}
+            {approveModal.req?.fuel_source === 'reserve_fuel' && (
+              <div className="p-3 bg-cyan-950/30 border border-cyan-500/30 rounded-xl space-y-1 text-xs">
+                <div className="font-bold text-cyan-300 flex items-center gap-1.5">
+                  <Gauge className="w-3.5 h-3.5" />
+                  <span>Company Yard Tank Stock Impact:</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>{t('reserve_before_approval', 'Yard Balance Before:')}</span>
+                  <span className="font-mono font-bold">{formatNumber(reserveInventory.balance_liters)} L</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>
+                    {approveModal.req?.reserve_action === 'draw' ? 'Liters to Deduct:' : 'Liters to Add:'}
+                  </span>
+                  <span className="font-mono font-bold text-amber-400">
+                    {approveModal.req?.reserve_action === 'draw' ? `−${approveModal.req?.liters} L` : `+${approveModal.req?.liters} L`}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-slate-700/60 pt-1 text-white">
+                  <span>{t('reserve_after_approval', 'Yard Balance After:')}</span>
+                  <span className="font-mono font-bold text-emerald-400">
+                    {formatNumber(
+                      approveModal.req?.reserve_action === 'draw'
+                        ? Math.max(0, reserveInventory.balance_liters - (approveModal.req?.liters || 0))
+                        : reserveInventory.balance_liters + (approveModal.req?.liters || 0)
+                    )}{' '}
+                    L
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Approved Amount (ETB):
+                {approveModal.req?.fuel_source === 'reserve_fuel' && approveModal.req?.reserve_action === 'draw'
+                  ? 'Approved Cash Disbursement (ETB):'
+                  : t('approved_amount_etb', 'Approved Amount (ETB):')}
               </label>
               <input
                 type="number"
@@ -504,33 +734,35 @@ export const FuelRequestsManagement = () => {
                 className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-emerald-400 font-mono font-bold text-lg"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">
-                You can adjust this amount (e.g. Requested 3,000 → Approve 2,500).
+                {approveModal.req?.fuel_source === 'reserve_fuel' && approveModal.req?.reserve_action === 'draw'
+                  ? 'Internal pump draw. Cash disbursement is typically 0 ETB as fuel is supplied from yard stock.'
+                  : t('adjust_amount_hint', 'You can adjust this amount (e.g. Requested 3,000 → Approve 2,500).')}
               </span>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Admin Note / Voucher Reference:
+                {t('admin_note_voucher_label', 'Admin Note / Voucher Reference:')}
               </label>
               <input
                 type="text"
                 value={approveModal.note}
                 onChange={e => setApproveModal({ ...approveModal, note: e.target.value })}
                 className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
-                placeholder="e.g. Fuel voucher #982 assigned"
+                placeholder={t('ph_fuel_voucher_assigned', 'e.g. Fuel voucher #982 assigned')}
               />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setApproveModal({ open: false, req: null, amount: 0, note: '' })}
-                className="px-3 py-1.5 text-xs text-slate-400"
+                className="px-3 py-1.5 text-xs text-slate-400 cursor-pointer"
               >
                 {t('cancel', 'Cancel')}
               </button>
               <button
                 onClick={handleApprove}
-                className="px-5 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl shadow-md"
+                className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md cursor-pointer"
               >
                 {t('fuel_btn_approve', 'Approve Request')}
               </button>
@@ -546,13 +778,13 @@ export const FuelRequestsManagement = () => {
             <h3 className="font-bold text-base text-white">{t('fuel_btn_reject', 'Reject Fuel Request')}</h3>
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Reason for Rejection (Required):
+                {t('reason_rejection_label', 'Reason for Rejection (Required):')}
               </label>
               <textarea
                 rows="3"
                 value={rejectModal.note}
                 onChange={e => setRejectModal({ ...rejectModal, note: e.target.value })}
-                placeholder="e.g. Truck refueled yesterday, quota exceeded"
+                placeholder={t('ph_fuel_quota_exceeded', 'e.g. Truck refueled yesterday, quota exceeded')}
                 className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white resize-none"
                 required
               />
@@ -638,7 +870,7 @@ export const FuelRequestsManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Driver</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('driver_field_colon', 'Driver:')}</label>
                   <select
                     value={fuelFormData.driver_id}
                     onChange={(e) => {
@@ -656,10 +888,10 @@ export const FuelRequestsManagement = () => {
                     }}
                     className="w-full py-2 px-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400"
                   >
-                    <option value="">-- Select Driver --</option>
+                    <option value="">{t('select_driver_opt', '-- Select Driver --')}</option>
                     {drivers.map(d => (
                       <option key={d.id} value={d.id}>
-                        {d.full_name} ({d.phone || 'Driver'})
+                        {d.full_name} ({d.phone || t('driver_field_colon', 'Driver')})
                       </option>
                     ))}
                   </select>
@@ -669,7 +901,7 @@ export const FuelRequestsManagement = () => {
               {/* Amount Requested & Approved */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Amount Requested (ETB) *</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('amount_requested_label', 'Amount Requested (ETB) *')}</label>
                   <input
                     type="number"
                     step="any"
@@ -688,7 +920,7 @@ export const FuelRequestsManagement = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Amount Disbursed / Approved (ETB)</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('amount_disbursed_label', 'Amount Disbursed / Approved (ETB)')}</label>
                   <input
                     type="number"
                     step="any"
@@ -703,20 +935,20 @@ export const FuelRequestsManagement = () => {
               {/* Status & Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Status *</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('status_field_colon', 'Status:')} *</label>
                   <select
                     value={fuelFormData.status}
                     onChange={(e) => setFuelFormData({ ...fuelFormData, status: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400"
                   >
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="paid">Disbursed / Paid (Syncs Expense)</option>
-                    <option value="rejected">Rejected</option>
+                    <option value="pending">{t('status_pending_opt', 'Pending')}</option>
+                    <option value="approved">{t('approved_tag', 'Approved')}</option>
+                    <option value="paid">{t('disbursed_sync_expense_opt', 'Disbursed / Paid (Syncs Expense)')}</option>
+                    <option value="rejected">{t('status_rejected', 'Rejected')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Date</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('date_field_colon', 'Date')}</label>
                   <input
                     type="date"
                     value={fuelFormData.requested_at}
@@ -729,17 +961,17 @@ export const FuelRequestsManagement = () => {
               {/* Station & Reason */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Fuel Station:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('fuel_station_field_label', 'Fuel Station:')}</label>
                   <input
                     type="text"
-                    placeholder="e.g. TotalEnergies Bole"
+                    placeholder={t('ph_total_energies_bole', 'e.g. TotalEnergies Bole')}
                     value={fuelFormData.fuel_station}
                     onChange={(e) => setFuelFormData({ ...fuelFormData, fuel_station: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Reason / Purpose *</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('reason_purpose_label', 'Reason / Purpose *')}</label>
                   <input
                     type="text"
                     value={fuelFormData.reason}
@@ -751,12 +983,12 @@ export const FuelRequestsManagement = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Admin Notes / Voucher #:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('admin_notes_voucher_label', 'Admin Notes / Voucher #:')}</label>
                 <textarea
                   rows="2"
                   value={fuelFormData.admin_note}
                   onChange={(e) => setFuelFormData({ ...fuelFormData, admin_note: e.target.value })}
-                  placeholder="Notes, voucher references..."
+                  placeholder={t('ph_fuel_voucher_notes', 'Notes, voucher references...')}
                   className="w-full py-2 px-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white resize-none focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -803,7 +1035,7 @@ export const FuelRequestsManagement = () => {
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Fuel className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-base text-white">Fuel Quick-Select Presets</h3>
+                <h3 className="font-bold text-base text-white">{t('fuel_quick_presets_title', 'Fuel Quick-Select Presets')}</h3>
               </div>
               <button
                 type="button"
@@ -815,7 +1047,7 @@ export const FuelRequestsManagement = () => {
             </div>
 
             <p className="text-xs text-slate-400">
-              Configure the 1-tap liter chips that drivers see when requesting fuel (e.g. 50 L, 80 L, 100 L, 150 L, 200 L, 300 L).
+              {t('fuel_presets_config_sub', 'Configure the 1-tap liter chips that drivers see when requesting fuel (e.g. 50 L, 80 L, 100 L, 150 L, 200 L, 300 L).')}
             </p>
 
             <div className="space-y-3">
@@ -830,14 +1062,14 @@ export const FuelRequestsManagement = () => {
                       type="button"
                       onClick={() => setAdminFuelPresets(prev => prev.filter((_, i) => i !== idx))}
                       className="text-slate-400 hover:text-red-400 font-bold text-xs cursor-pointer"
-                      title="Remove preset"
+                      title={t('remove_preset', 'Remove preset')}
                     >
                       ✕
                     </button>
                   </div>
                 ))}
                 {adminFuelPresets.length === 0 && (
-                  <span className="text-xs text-slate-500 italic">No presets added. Drivers will enter liters manually.</span>
+                  <span className="text-xs text-slate-500 italic">{t('no_fuel_presets_hint', 'No presets added. Drivers will enter liters manually.')}</span>
                 )}
               </div>
 
@@ -846,7 +1078,7 @@ export const FuelRequestsManagement = () => {
                   type="number"
                   min="1"
                   step="any"
-                  placeholder="Enter liters (e.g. 250)"
+                  placeholder={t('enter_liters_ph', 'Enter liters (e.g. 250)')}
                   value={newPresetVal}
                   onChange={e => setNewPresetVal(e.target.value)}
                   onKeyDown={e => {
@@ -916,6 +1148,114 @@ export const FuelRequestsManagement = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CALIBRATE RESERVE FUEL MODAL */}
+      {calibrateModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30">
+                  <Sliders className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">{t('reserve_calibrate_title', 'Adjust Reserve Tank Stock & Capacity')}</h3>
+                  <p className="text-[11px] text-slate-400">Calibrate yard diesel level after dipstick verification</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCalibrateModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCalibrateReserveFuel} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t('reserve_calibrate_balance', 'Current Fuel Balance (Liters)')} *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    value={calibrateForm.balance_liters}
+                    onChange={(e) => setCalibrateForm({ ...calibrateForm, balance_liters: e.target.value })}
+                    className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-cyan-400 font-mono font-bold text-base focus:outline-none focus:border-cyan-500"
+                    required
+                  />
+                  <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">Liters</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t('reserve_calibrate_capacity', 'Total Tank Capacity (Liters)')} *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    value={calibrateForm.capacity_liters}
+                    onChange={(e) => setCalibrateForm({ ...calibrateForm, capacity_liters: e.target.value })}
+                    className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono font-bold text-base focus:outline-none focus:border-slate-500"
+                    required
+                  />
+                  <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">Liters</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t('reserve_calibrate_threshold', 'Low-Level Alert Threshold (Liters)')} *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="any"
+                    value={calibrateForm.low_threshold}
+                    onChange={(e) => setCalibrateForm({ ...calibrateForm, low_threshold: e.target.value })}
+                    className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-amber-400 font-mono font-bold text-base focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                  <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">Liters</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t('reserve_calibrate_reason', 'Adjustment Reason / Dipstick Reading Note')} *
+                </label>
+                <textarea
+                  rows="2"
+                  value={calibrateForm.reason}
+                  onChange={(e) => setCalibrateForm({ ...calibrateForm, reason: e.target.value })}
+                  className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
+                  placeholder="e.g. Monthly physical dipstick measurement adjustment"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCalibrateModalOpen(false)}
+                  className="px-3 py-1.5 text-xs text-slate-400 cursor-pointer"
+                >
+                  {t('cancel', 'Cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl shadow-md cursor-pointer"
+                >
+                  {t('save', 'Save Changes')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { api } from '../../api/client';
-import { formatNumber } from '../../utils/formatters';
+import { formatNumber, formatCurrency } from '../../utils/formatters';
 import {
   X,
   MapPin,
@@ -16,7 +16,8 @@ import {
   ChevronLeft,
   Gauge,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Scale
 } from 'lucide-react';
 
 export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null }) => {
@@ -34,6 +35,7 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
   const [dumpingSites, setDumpingSites] = useState([]);
   const [transitionPoints, setTransitionPoints] = useState([]);
   const [materials, setMaterials] = useState([]);
+  const [smartPrice, setSmartPrice] = useState(null);
 
   // Form State (Steps 1 to 4)
   const [formData, setFormData] = useState({
@@ -47,9 +49,16 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
     has_transition: false,
     transition_point_ids: [],
     transition_point_name: '',
+    pricing_target: 'destination',
+    pricing_method: 'per_quintal',
+    unit_price: 0,
+    transit_unit_price: 0,
+    destination_unit_price: 0,
+    price_difference: 0,
   });
 
-  const [customSiteModal, setCustomSiteModal] = useState({ open: false, type: 'loading', name: '', location: '' });
+  const [customSiteModal, setCustomSiteModal] = useState({ open: false, type: 'loading', name: '', location: '', loading: false, error: '' });
+  const [customMaterialModal, setCustomMaterialModal] = useState({ open: false, name: '', default_unit: 'ton', default_price: 450, error: '', loading: false });
 
   // Load master data when modal opens
   useEffect(() => {
@@ -75,6 +84,16 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
       transition_point_name: initialTrip?.transition_point_name || '',
     });
 
+    const standardMaterials = [
+      { id: 'mat-sand', name: 'River Sand', default_unit: 'ton', default_price: 450 },
+      { id: 'mat-agg02', name: 'Crushed Aggregate (02)', default_unit: 'ton', default_price: 580 },
+      { id: 'mat-gravel', name: 'Round Gravel', default_unit: 'ton', default_price: 520 },
+      { id: 'mat-subbase', name: 'Selected Sub-base Soil', default_unit: 'ton', default_price: 380 },
+      { id: 'mat-cement', name: 'Cement Bags (PPC 42.5)', default_unit: 'quintal', default_price: 1100 },
+      { id: 'mat-basalt', name: 'Basalt Stone', default_unit: 'ton', default_price: 480 },
+      { id: 'mat-redash', name: 'Red Ash / Scoria', default_unit: 'ton', default_price: 350 },
+    ];
+
     Promise.all([
       api.get('/sites?type=loading'),
       api.get('/sites?type=dumping'),
@@ -86,7 +105,7 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
         setLoadingSites(load || []);
         setDumpingSites(dump || []);
         setTransitionPoints(trans || []);
-        setMaterials(mats || []);
+        setMaterials((mats && mats.length > 0) ? mats : standardMaterials);
 
         const lastKnown = Math.max(
           odoRes?.last_reading || 0,
@@ -103,14 +122,53 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
       .catch(console.error);
   }, [isOpen, truck, initialTrip]);
 
+  // Fetch smart route prices and price difference between transit and destination
+  useEffect(() => {
+    if (formData.loading_site_id && formData.dumping_site_id) {
+      const transitId = (formData.has_transition && formData.transition_point_ids?.length > 0)
+        ? formData.transition_point_ids[0]
+        : '';
+      api.get('/trips/smart-price', {
+        loading_site_id: formData.loading_site_id,
+        dumping_site_id: formData.dumping_site_id,
+        transit_point_id: transitId,
+        material_id: formData.material_id,
+      })
+        .then(res => {
+          if (res) {
+            setSmartPrice(res);
+            setFormData(prev => {
+              const destPrice = res.destination_price || res.price || prev.destination_unit_price || 0;
+              const transPrice = res.transit_price || prev.transit_unit_price || 0;
+              const target = prev.pricing_target || 'destination';
+              const activePrice = target === 'transit' && transPrice > 0 ? transPrice : (destPrice > 0 ? destPrice : prev.unit_price);
+              return {
+                ...prev,
+                destination_unit_price: destPrice,
+                transit_unit_price: transPrice,
+                unit_price: prev.unit_price > 0 && prev.unit_price !== prev.destination_unit_price ? prev.unit_price : activePrice,
+                pricing_method: res.pricing_method || prev.pricing_method || 'per_quintal',
+                price_difference: res.price_difference || (destPrice - transPrice),
+              };
+            });
+          }
+        })
+        .catch(console.error);
+    }
+  }, [formData.loading_site_id, formData.dumping_site_id, formData.material_id, formData.has_transition, formData.transition_point_ids]);
+
   if (!isOpen) return null;
 
   const handleCreateSite = async () => {
-    if (!customSiteModal.name.trim()) return;
+    if (!customSiteModal.name.trim()) {
+      setCustomSiteModal(prev => ({ ...prev, error: 'Please enter site name' }));
+      return;
+    }
+    setCustomSiteModal(prev => ({ ...prev, loading: true, error: '' }));
     try {
       const newSite = await api.post('/sites', {
-        name: customSiteModal.name,
-        location: customSiteModal.location || 'Local Site',
+        name: customSiteModal.name.trim(),
+        location: customSiteModal.location.trim() || 'Local Site',
         type: customSiteModal.type,
       });
 
@@ -132,9 +190,36 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
         }));
       }
 
-      setCustomSiteModal({ open: false, type: 'loading', name: '', location: '' });
+      setCustomSiteModal({ open: false, type: 'loading', name: '', location: '', loading: false, error: '' });
     } catch (err) {
-      alert('Failed to create site: ' + err.message);
+      setCustomSiteModal(prev => ({ ...prev, loading: false, error: err.message || 'Failed to create site' }));
+    }
+  };
+
+  const handleCreateMaterial = async () => {
+    if (!customMaterialModal.name.trim()) {
+      setCustomMaterialModal(prev => ({ ...prev, error: 'Please enter material name' }));
+      return;
+    }
+    setCustomMaterialModal(prev => ({ ...prev, loading: true, error: '' }));
+    try {
+      const newMat = await api.post('/materials', {
+        name: customMaterialModal.name.trim(),
+        default_unit: customMaterialModal.default_unit || 'ton',
+        default_price: parseFloat(customMaterialModal.default_price) || 450,
+      });
+      const matId = newMat.id || newMat._id || newMat.name;
+      setMaterials(prev => [...prev, newMat]);
+      setFormData(prev => ({
+        ...prev,
+        material_id: matId,
+        material_name: newMat.name,
+        unit: newMat.default_unit || 'ton',
+        unit_price: newMat.default_price || 450,
+      }));
+      setCustomMaterialModal({ open: false, name: '', default_unit: 'ton', default_price: 450, error: '', loading: false });
+    } catch (err) {
+      setCustomMaterialModal(prev => ({ ...prev, loading: false, error: err.message || 'Failed to create material' }));
     }
   };
 
@@ -184,9 +269,15 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
         dumping_site_name: formData.dumping_site_name,
         material_id: formData.material_id,
         material_name: formData.material_name,
-        has_transition: formData.has_transition,
+        has_transition: formData.has_transition || !!(formData.transition_point_name && formData.transition_point_name.trim()),
         transition_point_ids: formData.transition_point_ids,
-        transition_point_name: formData.transition_point_name,
+        transition_point_name: formData.transition_point_name ? formData.transition_point_name.trim() : '',
+        pricing_target: formData.pricing_target,
+        pricing_method: formData.pricing_method,
+        unit_price: parseFloat(formData.unit_price) || 0,
+        transit_unit_price: parseFloat(formData.transit_unit_price) || 0,
+        destination_unit_price: parseFloat(formData.destination_unit_price) || 0,
+        price_difference: parseFloat(formData.price_difference) || 0,
       };
 
       const result = await api.post('/trips/start', payload);
@@ -492,66 +583,139 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
                       {t('trip_select_material', 'Select cargo material:')} *
                     </p>
                     <div className="grid grid-cols-2 gap-2.5">
-                      {materials.map(m => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              material_id: m.id,
-                              material_name: m.name,
-                            }));
-                          }}
-                          className={`p-3.5 text-center rounded-2xl border transition-all touch-btn cursor-pointer ${
-                            formData.material_id === m.id
-                              ? 'bg-amber-500/25 border-amber-500 text-amber-300 shadow-lg shadow-amber-500/15 font-bold scale-[1.02]'
-                              : 'bg-slate-800/80 border-slate-700/80 text-slate-200 hover:bg-slate-800 hover:border-slate-600'
-                          }`}
-                        >
-                          <Package className="w-6 h-6 mx-auto mb-1.5 text-amber-400" />
-                          <div className="font-bold text-sm truncate">{m.name}</div>
-                          {m.default_unit && (
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              Standard: {m.default_unit}
-                            </div>
-                          )}
-                        </button>
-                      ))}
+                      {materials.map(m => {
+                        const mId = m.id || m._id || m.name;
+                        const isSelected = formData.material_id === mId || formData.material_name === m.name;
+                        return (
+                          <button
+                            key={mId}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                material_id: mId,
+                                material_name: m.name,
+                                unit: m.default_unit || prev.unit || 'ton',
+                                unit_price: m.default_price || prev.unit_price || 450,
+                              }));
+                            }}
+                            className={`p-3.5 text-center rounded-2xl border transition-all touch-btn cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500/25 border-amber-500 text-amber-300 shadow-lg shadow-amber-500/15 font-bold scale-[1.02]'
+                                : 'bg-slate-800/80 border-slate-700/80 text-slate-200 hover:bg-slate-800 hover:border-slate-600'
+                            }`}
+                          >
+                            <Package className="w-6 h-6 mx-auto mb-1.5 text-amber-400" />
+                            <div className="font-bold text-sm truncate">{m.name}</div>
+                            {m.default_unit && (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                Standard: {m.default_unit}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCustomMaterialModal({ open: true, name: '', default_unit: 'ton', default_price: 450, error: '', loading: false })}
+                      className="w-full mt-2.5 py-2.5 border-2 border-dashed border-slate-700 hover:border-amber-500/60 rounded-xl text-slate-400 hover:text-amber-400 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" /> {t('add_custom_material', '+ Add New Material / Cargo')}
+                    </button>
                   </div>
 
-                  {/* Transition Points (Optional) */}
-                  <div className="pt-2 border-t border-slate-800">
+                  {/* Transition Points Selector (Optional Waypoint - Rates entered at trip completion) */}
+                  <div className="pt-2 border-t border-slate-800 space-y-3">
                     <button
                       type="button"
                       onClick={() => setFormData(p => ({ ...p, has_transition: !p.has_transition }))}
                       className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 font-semibold cursor-pointer"
                     >
                       <Layers className="w-3.5 h-3.5 text-purple-400" />
-                      <span>{formData.has_transition ? '✓ Intermediate Transit Point Added' : '+ Add Intermediate Transit / Weigh Station (Optional)'}</span>
+                      <span>{formData.has_transition ? t('intermediate_transit_added', '✓ Intermediate Transit Point Added') : t('add_intermediate_transit_opt', '+ Add Intermediate Transit / Weigh Station (Optional)')}</span>
                     </button>
 
                     {formData.has_transition && (
-                      <div className="mt-2 space-y-1.5">
-                        {transitionPoints.map(tp => (
-                          <button
-                            key={tp.id}
-                            type="button"
-                            onClick={() => setFormData(p => ({
-                              ...p,
-                              transition_point_ids: [tp.id],
-                              transition_point_name: tp.name
-                            }))}
-                            className={`w-full p-2.5 text-left text-xs rounded-xl border transition ${
-                              formData.transition_point_ids.includes(tp.id)
-                                ? 'bg-purple-500/20 border-purple-500 text-purple-300 font-bold'
-                                : 'bg-slate-800 border-slate-700 text-slate-300'
-                            }`}
-                          >
-                            {tp.name} ({tp.location})
-                          </button>
-                        ))}
+                      <div className="space-y-3 p-3.5 bg-slate-800/90 rounded-2xl border border-purple-500/30">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-purple-400" />
+                              {t('transit_checkpoint_manual_label', 'Enter Transit Checkpoint / Hub Manually:')}
+                            </label>
+                            {formData.transition_point_name && (
+                              <button
+                                type="button"
+                                onClick={() => setFormData(p => ({
+                                  ...p,
+                                  transition_point_name: '',
+                                  transition_point_ids: []
+                                }))}
+                                className="text-[10px] text-red-400 hover:text-red-300 underline font-medium cursor-pointer"
+                              >
+                                {t('clear', 'Clear')}
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder={t('ph_transit_checkpoint_manual', 'Type checkpoint name (e.g. Modjo Kella, Awash Scale, Kality Hub)...')}
+                              value={formData.transition_point_name}
+                              onChange={e => {
+                                const val = e.target.value;
+                                const matched = transitionPoints.find(tp => tp.name.toLowerCase() === val.trim().toLowerCase());
+                                setFormData(p => ({
+                                  ...p,
+                                  has_transition: true,
+                                  transition_point_name: val,
+                                  transition_point_ids: matched ? [matched.id] : []
+                                }));
+                              }}
+                              className="w-full py-2.5 pl-9 pr-3 bg-slate-900 border border-purple-500/40 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400/40 shadow-inner"
+                            />
+                            <MapPin className="w-4 h-4 text-purple-400 absolute left-3 top-2.5 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        {/* Preset Checkpoint Suggestions */}
+                        {transitionPoints.length > 0 && (
+                          <div className="space-y-1.5 pt-2 border-t border-slate-700/60">
+                            <span className="text-[10px] text-slate-400 font-semibold block">
+                              {t('or_select_saved_transit', 'Or quick-select saved checkpoint:')}
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {transitionPoints.map(tp => {
+                                const isSelected = formData.transition_point_ids.includes(tp.id) || formData.transition_point_name === tp.name;
+                                return (
+                                  <button
+                                    key={tp.id}
+                                    type="button"
+                                    onClick={() => setFormData(p => ({
+                                      ...p,
+                                      has_transition: true,
+                                      transition_point_ids: [tp.id],
+                                      transition_point_name: tp.name
+                                    }))}
+                                    className={`p-2.5 text-left text-xs rounded-xl border transition cursor-pointer flex items-center justify-between ${
+                                      isSelected
+                                        ? 'bg-purple-500/25 border-purple-400 text-purple-200 font-bold shadow-xs ring-1 ring-purple-400/30'
+                                        : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:bg-slate-900 hover:border-slate-600'
+                                    }`}
+                                  >
+                                    <div className="truncate">
+                                      <div className="font-semibold">{tp.name}</div>
+                                      {tp.location && <div className="text-[10px] text-slate-400 truncate">{tp.location}</div>}
+                                    </div>
+                                    {isSelected && <span className="text-purple-400 font-bold text-xs">✓</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -616,34 +780,105 @@ export const StartTripModal = ({ isOpen, onClose, onSuccess, initialTrip = null 
             <h4 className="font-bold text-sm text-slate-100">
               {t('trip_or_add_site', '+ Add New Custom Site')}
             </h4>
+            {customSiteModal.error && (
+              <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-300">
+                {customSiteModal.error}
+              </div>
+            )}
             <input
               type="text"
-              placeholder="Site Name (e.g. Quarry B, Ring Road km 4)"
+              autoFocus
+              placeholder={t('site_name_ph', 'Site Name (e.g. Quarry B, Ring Road km 4)')}
               value={customSiteModal.name}
-              onChange={e => setCustomSiteModal({ ...customSiteModal, name: e.target.value })}
-              className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+              onChange={e => setCustomSiteModal({ ...customSiteModal, name: e.target.value, error: '' })}
+              className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 focus:border-amber-400 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
             />
             <input
               type="text"
-              placeholder="Location description"
+              placeholder={t('location_desc_ph', 'Location description')}
               value={customSiteModal.location}
               onChange={e => setCustomSiteModal({ ...customSiteModal, location: e.target.value })}
-              className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+              className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 focus:border-amber-400 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
             />
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setCustomSiteModal({ open: false, type: 'loading', name: '', location: '' })}
+                onClick={() => setCustomSiteModal({ open: false, type: 'loading', name: '', location: '', loading: false, error: '' })}
                 className="px-3 py-1.5 text-xs text-slate-400 hover:text-white cursor-pointer"
               >
                 {t('cancel', 'Cancel')}
               </button>
               <button
                 type="button"
+                disabled={customSiteModal.loading || !customSiteModal.name.trim()}
                 onClick={handleCreateSite}
-                className="px-4 py-1.5 bg-amber-500 text-slate-950 font-bold text-xs rounded-xl cursor-pointer"
+                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl cursor-pointer"
               >
-                {t('add', 'Add Site')}
+                {customSiteModal.loading ? 'Adding...' : t('add', 'Add Site')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Custom Material Modal */}
+      {customMaterialModal.open && (
+        <div className="fixed inset-0 z-60 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-sm space-y-3">
+            <h4 className="font-bold text-sm text-slate-100">
+              {t('add_custom_material', '+ Add New Material / Cargo')}
+            </h4>
+            {customMaterialModal.error && (
+              <div className="p-2.5 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-300">
+                {customMaterialModal.error}
+              </div>
+            )}
+            <input
+              type="text"
+              autoFocus
+              placeholder="e.g. Iron Rebar, Gypsum, Concrete Blocks..."
+              value={customMaterialModal.name}
+              onChange={e => setCustomMaterialModal({ ...customMaterialModal, name: e.target.value, error: '' })}
+              className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 focus:border-amber-400 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-slate-400 block mb-1">Standard Unit:</label>
+                <select
+                  value={customMaterialModal.default_unit}
+                  onChange={e => setCustomMaterialModal({ ...customMaterialModal, default_unit: e.target.value })}
+                  className="w-full py-2 px-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
+                >
+                  <option value="ton">Ton</option>
+                  <option value="quintal">Quintal</option>
+                  <option value="kg">KG</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-400 block mb-1">Default Rate (ETB):</label>
+                <input
+                  type="number"
+                  value={customMaterialModal.default_price}
+                  onChange={e => setCustomMaterialModal({ ...customMaterialModal, default_price: e.target.value })}
+                  className="w-full py-2 px-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setCustomMaterialModal({ open: false, name: '', default_unit: 'ton', default_price: 450, error: '', loading: false })}
+                className="px-3 py-1.5 text-xs text-slate-400 hover:text-white cursor-pointer"
+              >
+                {t('cancel', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={customMaterialModal.loading || !customMaterialModal.name.trim()}
+                onClick={handleCreateMaterial}
+                className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                {customMaterialModal.loading ? 'Adding...' : t('add', 'Add Material')}
               </button>
             </div>
           </div>

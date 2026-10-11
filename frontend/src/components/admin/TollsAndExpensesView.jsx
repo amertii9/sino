@@ -160,7 +160,7 @@ export const TollsAndExpensesView = () => {
   const handleSaveModalItem = (e) => {
     e.preventDefault();
     if (!editModal.name.trim() || !editModal.amount || parseFloat(editModal.amount) <= 0) {
-      alert('Please enter a valid suggestion name and amount.');
+      alert(t('enter_valid_suggestion_amount', 'Please enter a valid suggestion name and amount.'));
       return;
     }
 
@@ -185,7 +185,7 @@ export const TollsAndExpensesView = () => {
   // Remove a suggestion
   const handleRemove = (index) => {
     const item = suggestions[index];
-    if (window.confirm(`Are you sure you want to remove "${item.name}" from driver suggestions?`)) {
+    if (window.confirm(t('remove_suggestion', 'Remove suggestion') + `?`)) {
       const updated = suggestions.filter((_, i) => i !== index);
       setSuggestions(updated);
       handleSaveToDriverApp(updated);
@@ -206,7 +206,7 @@ export const TollsAndExpensesView = () => {
 
   // Restore defaults
   const handleResetDefaults = () => {
-    if (window.confirm('Reset suggestions to system default presets?')) {
+    if (window.confirm(t('reset_suggestions_factory', 'Reset suggestions to system default presets?'))) {
       setSuggestions(DEFAULT_PRESETS);
       handleSaveToDriverApp(DEFAULT_PRESETS);
     }
@@ -274,25 +274,25 @@ export const TollsAndExpensesView = () => {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{t('tolls_active_sug', 'Active Suggestions')}</div>
           <div className="text-2xl font-black text-white mt-1">{suggestions.length}</div>
-          <div className="text-[11px] text-amber-400 font-semibold mt-0.5">Live on Driver App</div>
+          <div className="text-[11px] text-amber-400 font-semibold mt-0.5">{t('live_on_driver_app', 'Live on Driver App')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{t('tolls_expressway', 'Expressway Tolls')}</div>
           <div className="text-2xl font-black text-blue-400 mt-1">{tollCount}</div>
-          <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Modjo, Adama, Awash</div>
+          <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{t('ph_tolls_cities_example', 'Modjo, Adama, Awash')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{t('tolls_weighbridge_gates', 'Weighbridge & Gates')}</div>
           <div className="text-2xl font-black text-purple-400 mt-1">{weighbridgeCount + otherCount}</div>
-          <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Scales & Yard Passes</div>
+          <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{t('scales_passes_sub', 'Scales & Yard Passes')}</div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{t('tolls_trip_fees_rec', 'Trip Fees Recorded')}</div>
           <div className="text-2xl font-black text-emerald-400 mt-1">{formatCurrency(totalRecordedAmount)}</div>
-          <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{recordedExpenses.length} trip fee entries</div>
+          <div className="text-[11px] text-slate-500 font-semibold mt-0.5">{recordedExpenses.length} {t('trip_fee_entries', 'trip fee entries')}</div>
         </div>
       </div>
 
@@ -301,9 +301,9 @@ export const TollsAndExpensesView = () => {
         <div className="p-3.5 bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs rounded-2xl flex items-center justify-between animate-fadeIn">
           <div className="flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-            <span className="font-bold">Suggestions saved successfully! Drivers will immediately see these presets on their trip entry screen.</span>
+            <span className="font-bold">{t('suggestions_saved_success', 'Suggestions saved successfully! Drivers will immediately see these presets on their trip entry screen.')}</span>
           </div>
-          <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full font-bold">Live Synced</span>
+          <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full font-bold">{t('live_synced', 'Live Synced')}</span>
         </div>
       )}
 
@@ -364,7 +364,7 @@ export const TollsAndExpensesView = () => {
                     title="Reset to default presets"
                   >
                     <RotateCcw className="w-3 h-3" />
-                    <span>Defaults</span>
+                    <span>{t('defaults_badge', 'Defaults')}</span>
                   </button>
                   <button
                     onClick={() => handleSaveToDriverApp()}
@@ -372,7 +372,7 @@ export const TollsAndExpensesView = () => {
                     className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-md shadow-amber-500/20"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>{saving ? 'Saving...' : 'Save All'}</span>
+                    <span>{saving ? t('saving', 'Saving...') : t('save_all', 'Save All')}</span>
                   </button>
                 </div>
               </div>
@@ -460,7 +460,7 @@ export const TollsAndExpensesView = () => {
                 className="w-full py-2.5 border border-dashed border-slate-700 hover:border-amber-500/50 hover:bg-amber-500/5 text-slate-400 hover:text-amber-400 rounded-2xl text-xs font-bold transition flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Another Driver Suggestion</span>
+                <span>{t('add_another_suggestion', 'Add Another Driver Suggestion')}</span>
               </button>
             </div>
           </div>
@@ -471,14 +471,14 @@ export const TollsAndExpensesView = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Smartphone className="w-4 h-4 text-emerald-400" />
-                  <h3 className="text-sm font-bold text-white">Driver Phone Simulation</h3>
+                  <h3 className="text-sm font-bold text-white">{t('driver_phone_simulation', 'Driver Phone Simulation')}</h3>
                 </div>
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                  Step 7: Additional Fees
+                  {t('step_7_additional_fees', 'Step 7: Additional Fees')}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Interactive preview showing exactly how the driver experiences this step on mobile. Tap any suggestion below to test it!
+                {t('interactive_preview_sub', 'Interactive preview showing exactly how the driver experiences this step on mobile. Tap any suggestion below to test it!')}
               </p>
 
               {/* Simulated Phone Screen */}
@@ -486,15 +486,15 @@ export const TollsAndExpensesView = () => {
                 {/* Header calculation preview */}
                 <div className="p-3 bg-slate-900 border border-slate-700/80 rounded-xl text-[11px] space-y-1">
                   <div className="flex justify-between text-slate-400">
-                    <span>Gross Hauling:</span>
+                    <span>{t('gross_hauling_colon', 'Gross Hauling:')}</span>
                     <span className="font-bold text-white">10,000.00 ETB</span>
                   </div>
                   <div className="flex justify-between text-rose-400">
-                    <span>Fees Deducted:</span>
+                    <span>{t('fees_deducted_colon', 'Fees Deducted:')}</span>
                     <span className="font-bold">- {formatCurrency(simulatedTotalFees)}</span>
                   </div>
                   <div className="pt-1 border-t border-slate-700/80 flex justify-between font-bold text-amber-400">
-                    <span>Driver Net Pay:</span>
+                    <span>{t('driver_net_pay_label', 'Driver Net Pay:')}</span>
                     <span>{formatCurrency(Math.max(0, 10000 - simulatedTotalFees))}</span>
                   </div>
                 </div>
@@ -525,7 +525,7 @@ export const TollsAndExpensesView = () => {
                       title="Add more fee lines"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>Add</span>
+                      <span>{t('add', 'Add')}</span>
                     </button>
                   </div>
                 </div>
@@ -565,9 +565,9 @@ export const TollsAndExpensesView = () => {
               </div>
 
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[11px] text-amber-300/90 leading-relaxed">
-                <strong>Why this is simple for drivers:</strong>
+                <strong>{t('why_simple_drivers', 'Why this is simple for drivers:')}</strong>
                 <p className="mt-1 text-slate-300">
-                  Drivers tap any suggestion preset to populate the amount in 1 touch without typing. All submitted fees are automatically deducted from their trip pay and sent to the admin dashboard under Other Expenses.
+                  {t('driver_preset_simplicity_desc', 'Drivers tap any suggestion preset to populate the amount in 1 touch without typing. All submitted fees are automatically deducted from their trip pay and sent to the admin dashboard under Other Expenses.')}
                 </p>
               </div>
             </div>
@@ -581,10 +581,10 @@ export const TollsAndExpensesView = () => {
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Receipt className="w-4 h-4 text-amber-400" />
-              Recorded Trip Tolls & Additional Fees
+              {t('recorded_trip_tolls_fees', 'Recorded Trip Tolls & Additional Fees')}
             </h3>
             <p className="text-[11px] text-slate-400">
-              Audit log of all additional fees and expressway tolls entered by drivers across all completed hauling trips
+              {t('audit_log_fees_sub', 'Audit log of all additional fees and expressway tolls entered by drivers across all completed hauling trips')}
             </p>
           </div>
 
@@ -592,14 +592,14 @@ export const TollsAndExpensesView = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800/80 text-slate-400 border-b border-slate-700/80">
                 <tr>
-                  <th className="py-3 px-4 font-bold">Date</th>
-                  <th className="py-3 px-4 font-bold">Trip No.</th>
-                  <th className="py-3 px-4 font-bold">Truck Plate</th>
-                  <th className="py-3 px-4 font-bold">Driver</th>
-                  <th className="py-3 px-4 font-bold">Fee Type</th>
-                  <th className="py-3 px-4 font-bold">Receipt / Ref</th>
-                  <th className="py-3 px-4 font-bold text-right">Amount (ETB)</th>
-                  <th className="py-3 px-4 font-bold text-center">Status</th>
+                  <th className="py-3 px-4 font-bold">{t('date_field_colon', 'Date')}</th>
+                  <th className="py-3 px-4 font-bold">{t('trip_no_col_header', 'Trip No.')}</th>
+                  <th className="py-3 px-4 font-bold">{t('truck_plate_field_label', 'Truck Plate')}</th>
+                  <th className="py-3 px-4 font-bold">{t('driver_field_colon', 'Driver')}</th>
+                  <th className="py-3 px-4 font-bold">{t('fee_type_col_header', 'Fee Type')}</th>
+                  <th className="py-3 px-4 font-bold">{t('receipt_ref_col_header', 'Receipt / Ref')}</th>
+                  <th className="py-3 px-4 font-bold text-right">{t('amount_etb_field', 'Amount (ETB)')}</th>
+                  <th className="py-3 px-4 font-bold text-center">{t('status', 'Status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -672,7 +672,7 @@ export const TollsAndExpensesView = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Modjo Expressway Toll, Awash Scale"
+                  placeholder={t('fee_name_ph', 'e.g. Modjo Expressway Toll, Awash Scale')}
                   value={editModal.name}
                   onChange={(e) => setEditModal({ ...editModal, name: e.target.value })}
                   className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold"
@@ -682,7 +682,7 @@ export const TollsAndExpensesView = () => {
 
               <div>
                 <label className="block text-slate-300 mb-1 font-semibold">
-                  Default Amount (ETB): *
+                  {t('default_amount_etb', 'Default Amount (ETB): *')}
                 </label>
                 <input
                   type="number"
@@ -698,25 +698,25 @@ export const TollsAndExpensesView = () => {
 
               <div>
                 <label className="block text-slate-300 mb-1 font-semibold">
-                  Fee Category:
+                  {t('fee_category_label', 'Fee Category:')}
                 </label>
                 <select
                   value={editModal.fee_type}
                   onChange={(e) => setEditModal({ ...editModal, fee_type: e.target.value })}
                   className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold"
                 >
-                  <option value="toll">🛣️ Toll Expressway</option>
-                  <option value="weighbridge">⚖️ Weighbridge / Scale</option>
-                  <option value="gate_fee">🚪 Gate / Yard Pass</option>
-                  <option value="parking">🅿️ Parking / Staging</option>
-                  <option value="escort">🛡️ Escort / Security</option>
-                  <option value="other">🏷️ Other Fee</option>
+                  <option value="toll">🛣️ {t('toll_expressway_opt', 'Toll Expressway')}</option>
+                  <option value="weighbridge">⚖️ {t('weighbridge_scale_opt', 'Weighbridge / Scale')}</option>
+                  <option value="gate_fee">🚪 {t('gate_yard_pass_opt', 'Gate / Yard Pass')}</option>
+                  <option value="parking">🅿️ {t('parking_staging_opt', 'Parking / Staging')}</option>
+                  <option value="escort">🛡️ {t('escort_security_opt', 'Escort / Security')}</option>
+                  <option value="other">🏷️ {t('other_fee_opt', 'Other Fee')}</option>
                 </select>
               </div>
 
               {/* Preview */}
               <div className="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl">
-                <span className="text-[10px] text-slate-400 font-bold block mb-1">Preview as Driver Button:</span>
+                <span className="text-[10px] text-slate-400 font-bold block mb-1">{t('preview_as_driver_btn', 'Preview as Driver Button:')}</span>
                 <div className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 bg-slate-900 border border-amber-500/50 rounded-xl text-[11px] font-bold text-slate-100">
                   <span>{(CATEGORY_META[editModal.fee_type] || CATEGORY_META.other).icon}</span>
                   <span>{editModal.name || 'Sample Fee'}</span>

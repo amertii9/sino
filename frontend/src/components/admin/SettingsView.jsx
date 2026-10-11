@@ -29,8 +29,21 @@ import {
   UserPlus,
   UserCheck,
   AlertCircle,
-  Wrench
+  Wrench,
+  MapPin
 } from 'lucide-react';
+
+const DEFAULT_TRANSIT_SUGGESTIONS = [
+  { id: 'kality_hub', name: 'Kality Weigh Station & Hub', location: 'Addis Ababa South Gate', suggested_rate_per_ton: 350, suggested_rate_per_quintal: 35, suggested_rate_per_kg: 0.35, suggested_lump_sum: 8500, default_pricing_method: 'per_ton', notes: 'Intermediate weighbridge & staging offload' },
+  { id: 'modjo_toll', name: 'Modjo Expressway Toll Plaza', location: 'Modjo Junction', suggested_rate_per_ton: 420, suggested_rate_per_quintal: 42, suggested_rate_per_kg: 0.42, suggested_lump_sum: 11000, default_pricing_method: 'per_ton', notes: 'Expressway interchange distribution point' },
+  { id: 'dukem_scale', name: 'Dukem Weighbridge Scale', location: 'Dukem Industrial Zone', suggested_rate_per_ton: 300, suggested_rate_per_quintal: 30, suggested_rate_per_kg: 0.30, suggested_lump_sum: 7500, default_pricing_method: 'per_ton', notes: 'Industrial park partial offload site' },
+];
+
+const DEFAULT_DESTINATION_SUGGESTIONS = [
+  { id: 'bole_lemi', name: 'Bole Lemi Industrial Park Project', location: 'Bole Lemi Phase 2, Addis Ababa', suggested_rate_per_ton: 480, suggested_rate_per_quintal: 48, suggested_rate_per_kg: 0.48, suggested_lump_sum: 12000, default_pricing_method: 'per_ton', notes: 'Addis Ababa southern industrial cluster' },
+  { id: 'ring_road', name: 'Addis Ababa Ring Road Corridor', location: 'Gotera to Kality Section', suggested_rate_per_ton: 520, suggested_rate_per_quintal: 52, suggested_rate_per_kg: 0.52, suggested_lump_sum: 13000, default_pricing_method: 'per_ton', notes: 'Capital ring road infrastructure extension' },
+  { id: 'cbe_hq', name: 'Commercial Bank HQ Site', location: 'Ras Desta Damtew St, Addis Ababa', suggested_rate_per_ton: 550, suggested_rate_per_quintal: 55, suggested_rate_per_kg: 0.55, suggested_lump_sum: 14000, default_pricing_method: 'per_ton', notes: 'City center heavy building construction site' },
+];
 
 const DEFAULT_FEE_SUGGESTIONS = [
   { name: 'Modjo Expressway Toll', amount: 150, fee_type: 'toll' },
@@ -51,6 +64,39 @@ const DEFAULT_MAINT_SUGGESTIONS = [
   { id: 'other', label: 'Other Work / Breakdown', icon: '⚠️' },
 ];
 
+const DEFAULT_WELCOME_SUGGESTIONS = [
+  {
+    id: 'safety_inspection',
+    title: '🛡️ Safety & Vehicle Inspection',
+    badge: 'Safety Priority',
+    message: 'Drive safely! Inspect your truck, check tire pressures, and confirm cargo documentation before departure.',
+  },
+  {
+    id: 'optimal_speed',
+    title: '⚡ Optimal Speed & Expressways',
+    badge: 'Operations',
+    message: 'Welcome to today\'s shift! Maintain optimal speed, drive cautiously on expressways, and report all transit stops promptly.',
+  },
+  {
+    id: 'weather_warning',
+    title: '🌧️ Weather & Route Advisory',
+    badge: 'Weather Advisory',
+    message: 'Caution on wet roads & steep gradients: Ensure your windshield wipers, headlights, and brakes are tested before departing.',
+  },
+  {
+    id: 'motivation_greeting',
+    title: '⭐ Fleet Motivation & Gratitude',
+    badge: 'Team Motivation',
+    message: 'Welcome back, captain! Your hard work and vigilance power our fleet. Let\'s make today safe, productive, and profitable!',
+  },
+  {
+    id: 'fuel_conservation',
+    title: '⛽ Smooth Driving & Fuel Conservation',
+    badge: 'Efficiency',
+    message: 'Good morning! Practice smooth acceleration and minimize idle engine run times to conserve diesel and protect vehicle health.',
+  },
+];
+
 export const SettingsView = () => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('general'); // 'general' | 'drivers' | 'suggestions'
@@ -59,11 +105,15 @@ export const SettingsView = () => {
   const [formData, setFormData] = useState({
     company_name: 'Horn Logistics & Hauling Fleet PLC',
     currency: 'ETB',
-    default_unit: 'ton',
+    default_unit: 'quintal',
     company_phone: '+251 911 234 567',
     company_email: 'operations@hornfleet.com',
     diesel_price: 100,
+    driver_welcome_message: 'Drive safely! Inspect your truck, check tire pressures, and confirm cargo documentation before departure.',
   });
+
+  const [welcomeSuggestions, setWelcomeSuggestions] = useState(DEFAULT_WELCOME_SUGGESTIONS);
+  const [newWelcomeSuggestionText, setNewWelcomeSuggestionText] = useState('');
 
   // Suggestions State
   const [feeSuggestions, setFeeSuggestions] = useState(DEFAULT_FEE_SUGGESTIONS);
@@ -71,6 +121,29 @@ export const SettingsView = () => {
   const [newPresetLiters, setNewPresetLiters] = useState('');
   const [maintSuggestions, setMaintSuggestions] = useState(DEFAULT_MAINT_SUGGESTIONS);
   const [newMaintLabel, setNewMaintLabel] = useState('');
+  const [transitSuggestions, setTransitSuggestions] = useState(DEFAULT_TRANSIT_SUGGESTIONS);
+  const [newTransitForm, setNewTransitForm] = useState({
+    name: '',
+    location: '',
+    suggested_rate_per_ton: '',
+    suggested_rate_per_quintal: '',
+    suggested_rate_per_kg: '',
+    suggested_lump_sum: '',
+    default_pricing_method: 'per_quintal',
+    notes: '',
+  });
+
+  const [destinationSuggestions, setDestinationSuggestions] = useState(DEFAULT_DESTINATION_SUGGESTIONS);
+  const [newDestinationForm, setNewDestinationForm] = useState({
+    name: '',
+    location: '',
+    suggested_rate_per_ton: '',
+    suggested_rate_per_quintal: '',
+    suggested_rate_per_kg: '',
+    suggested_lump_sum: '',
+    default_pricing_method: 'per_ton',
+    notes: '',
+  });
 
   // Drivers & Password Management State
   const [drivers, setDrivers] = useState([]);
@@ -116,7 +189,25 @@ export const SettingsView = () => {
   const loadSettings = () => {
     api.get('/settings')
       .then(res => {
-        if (res?.company_name) setFormData(res);
+        if (res?.company_name) {
+          setFormData(prev => ({
+            ...prev,
+            ...res,
+            driver_welcome_message: res.driver_welcome_message !== undefined ? res.driver_welcome_message : prev.driver_welcome_message
+          }));
+        }
+        if (res?.welcome_message_suggestions && res.welcome_message_suggestions.length > 0) {
+          const mapped = res.welcome_message_suggestions.map((s, i) => {
+            if (typeof s === 'object') return s;
+            return {
+              id: `api_welcome_${i}`,
+              title: `Template #${i + 1}`,
+              badge: 'Saved Template',
+              message: s,
+            };
+          });
+          setWelcomeSuggestions(mapped);
+        }
         if (res?.fee_suggestions && res.fee_suggestions.length > 0) {
           setFeeSuggestions(res.fee_suggestions);
         }
@@ -125,6 +216,12 @@ export const SettingsView = () => {
         }
         if (res?.maintenance_suggestions && res.maintenance_suggestions.length > 0) {
           setMaintSuggestions(res.maintenance_suggestions);
+        }
+        if (res?.transit_point_suggestions && res.transit_point_suggestions.length > 0) {
+          setTransitSuggestions(res.transit_point_suggestions);
+        }
+        if (res?.destination_rate_suggestions && res.destination_rate_suggestions.length > 0) {
+          setDestinationSuggestions(res.destination_rate_suggestions);
         }
       })
       .catch(console.error);
@@ -174,20 +271,127 @@ export const SettingsView = () => {
         .filter(n => !isNaN(n) && n > 0)
         .sort((a, b) => a - b);
 
+      const validTransitSuggestions = transitSuggestions
+        .filter(t => t.name && t.name.trim())
+        .map(t => {
+          const tonRate = parseFloat(t.suggested_rate_per_ton) || 0;
+          return {
+            id: t.id || t.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30),
+            name: t.name.trim(),
+            location: (t.location || '').trim(),
+            suggested_rate_per_ton: tonRate,
+            suggested_rate_per_quintal: parseFloat(t.suggested_rate_per_quintal) || (tonRate > 0 ? +(tonRate / 10).toFixed(2) : 0),
+            suggested_rate_per_kg: parseFloat(t.suggested_rate_per_kg) || (tonRate > 0 ? +(tonRate / 1000).toFixed(3) : 0),
+            suggested_lump_sum: parseFloat(t.suggested_lump_sum) || 0,
+            default_pricing_method: t.default_pricing_method || 'per_ton',
+            notes: (t.notes || '').trim(),
+          };
+        });
+
+      const validDestSuggestions = destinationSuggestions
+        .filter(d => d.name && d.name.trim())
+        .map(d => {
+          const tonRate = parseFloat(d.suggested_rate_per_ton) || 0;
+          return {
+            id: d.id || d.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30),
+            name: d.name.trim(),
+            location: (d.location || '').trim(),
+            suggested_rate_per_ton: tonRate,
+            suggested_rate_per_quintal: parseFloat(d.suggested_rate_per_quintal) || (tonRate > 0 ? +(tonRate / 10).toFixed(2) : 0),
+            suggested_rate_per_kg: parseFloat(d.suggested_rate_per_kg) || (tonRate > 0 ? +(tonRate / 1000).toFixed(3) : 0),
+            suggested_lump_sum: parseFloat(d.suggested_lump_sum) || 0,
+            default_pricing_method: d.default_pricing_method || 'per_ton',
+            notes: (d.notes || '').trim(),
+          };
+        });
+
       await api.put('/settings', {
         ...formData,
         fee_suggestions: validSuggestions,
         fuel_liters_presets: validPresets,
         maintenance_suggestions: maintSuggestions,
+        transit_point_suggestions: validTransitSuggestions,
+        destination_rate_suggestions: validDestSuggestions,
+        welcome_message_suggestions: welcomeSuggestions.map(s => typeof s === 'string' ? s : s.message),
       });
 
       window.dispatchEvent(new CustomEvent('maintenance-suggestions-updated'));
+      window.dispatchEvent(new CustomEvent('transit-suggestions-updated'));
+      window.dispatchEvent(new CustomEvent('destination-suggestions-updated'));
+      window.dispatchEvent(new CustomEvent('welcome-message-updated'));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       alert('Failed to save settings: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteWelcomeSuggestion = async (indexToDelete) => {
+    const updated = welcomeSuggestions.filter((_, idx) => idx !== indexToDelete);
+    setWelcomeSuggestions(updated);
+    try {
+      await api.put('/settings', {
+        ...formData,
+        fee_suggestions: feeSuggestions.filter(f => f.name && f.name.trim() && parseFloat(f.amount) > 0),
+        fuel_liters_presets: fuelPresets,
+        maintenance_suggestions: maintSuggestions,
+        transit_point_suggestions: transitSuggestions,
+        destination_rate_suggestions: destinationSuggestions,
+        welcome_message_suggestions: updated.map(s => typeof s === 'string' ? s : s.message),
+      });
+      window.dispatchEvent(new CustomEvent('welcome-message-updated'));
+    } catch (err) {
+      console.error('Failed to sync deleted welcome template:', err);
+    }
+  };
+
+  const handleResetWelcomeSuggestions = async () => {
+    setWelcomeSuggestions(DEFAULT_WELCOME_SUGGESTIONS);
+    try {
+      await api.put('/settings', {
+        ...formData,
+        fee_suggestions: feeSuggestions.filter(f => f.name && f.name.trim() && parseFloat(f.amount) > 0),
+        fuel_liters_presets: fuelPresets,
+        maintenance_suggestions: maintSuggestions,
+        transit_point_suggestions: transitSuggestions,
+        destination_rate_suggestions: destinationSuggestions,
+        welcome_message_suggestions: DEFAULT_WELCOME_SUGGESTIONS.map(s => s.message),
+      });
+      window.dispatchEvent(new CustomEvent('welcome-message-updated'));
+    } catch (err) {
+      console.error('Failed to reset welcome templates:', err);
+    }
+  };
+
+  const handleAddWelcomeSuggestion = async (msgText) => {
+    const trimmed = (msgText || newWelcomeSuggestionText).trim();
+    if (!trimmed) return;
+    const newSug = {
+      id: `custom_${Date.now()}`,
+      title: '📝 Custom Template',
+      badge: 'Custom',
+      message: trimmed,
+    };
+    const updated = [...welcomeSuggestions, newSug];
+    setWelcomeSuggestions(updated);
+    setFormData(prev => ({ ...prev, driver_welcome_message: trimmed }));
+    setNewWelcomeSuggestionText('');
+    try {
+      await api.put('/settings', {
+        ...formData,
+        driver_welcome_message: trimmed,
+        fee_suggestions: feeSuggestions.filter(f => f.name && f.name.trim() && parseFloat(f.amount) > 0),
+        fuel_liters_presets: fuelPresets,
+        maintenance_suggestions: maintSuggestions,
+        transit_point_suggestions: transitSuggestions,
+        destination_rate_suggestions: destinationSuggestions,
+        welcome_message_suggestions: updated.map(s => typeof s === 'string' ? s : s.message),
+      });
+      window.dispatchEvent(new CustomEvent('welcome-message-updated'));
+    } catch (err) {
+      console.error('Failed to sync added welcome template:', err);
     }
   };
 
@@ -457,13 +661,13 @@ export const SettingsView = () => {
                 <img src="/logo.png" alt="Company Logo" className="h-10 w-auto object-contain filter drop-shadow-[0_2px_8px_rgba(255,28,28,0.25)]" />
               </div>
               <div>
-                <span className="font-bold text-slate-200 block text-xs">Official Fleet Logo</span>
-                <p className="text-[11px] text-slate-400 mt-0.5">Active logo loaded from <span className="font-mono text-amber-400">logo.png</span>, applied across the navigation bar, login screen, and driver portal.</p>
+                <span className="font-bold text-slate-200 block text-xs">{t('official_fleet_logo')}</span>
+                <p className="text-[11px] text-slate-400 mt-0.5">{t('active_logo_loaded')} <span className="font-mono text-amber-400">{t('ph_logo_file_example')}</span>, applied across the navigation bar, login screen, and driver portal.</p>
               </div>
             </div>
 
             <div>
-              <label className="block text-slate-300 mb-1 font-semibold">Company / Operator Name:</label>
+              <label className="block text-slate-300 mb-1 font-semibold">{t('company_operator_name')}</label>
               <input
                 type="text"
                 value={formData.company_name}
@@ -475,36 +679,36 @@ export const SettingsView = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Operating Currency:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('operating_currency')}</label>
                 <select
                   value={formData.currency}
                   onChange={e => setFormData({ ...formData, currency: e.target.value })}
                   className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold"
                 >
-                  <option value="ETB">ETB (Ethiopian Birr)</option>
-                  <option value="USD">USD (US Dollar)</option>
-                  <option value="EUR">EUR (Euro)</option>
-                  <option value="KES">KES (Kenyan Shilling)</option>
+                  <option value="ETB">{t('etb_currency_label')}</option>
+                  <option value="USD">{t('usd_currency_label')}</option>
+                  <option value="EUR">{t('eur_currency_label')}</option>
+                  <option value="KES">{t('kes_currency_label')}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Default Measure Unit:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('default_measure_unit')}</label>
                 <select
                   value={formData.default_unit}
                   onChange={e => setFormData({ ...formData, default_unit: e.target.value })}
                   className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                 >
-                  <option value="ton">Metric Ton (1,000 kg)</option>
-                  <option value="quintal">Quintal (100 kg)</option>
-                  <option value="kg">Kilogram (kg)</option>
+                  <option value="ton">{t('metric_ton_label')}</option>
+                  <option value="quintal">{t('quintal_label')}</option>
+                  <option value="kg">{t('kilogram_label')}</option>
                 </select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Support / Dispatch Phone:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('support_phone_label')}</label>
                 <input
                   type="text"
                   value={formData.company_phone}
@@ -514,7 +718,7 @@ export const SettingsView = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Operations Email:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('operations_email_label')}</label>
                 <input
                   type="email"
                   value={formData.company_email}
@@ -536,8 +740,165 @@ export const SettingsView = () => {
                   className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-amber-400 font-mono font-bold"
                   required
                 />
-                <span className="text-slate-400 text-xs shrink-0">Used for auto fuel volume estimation</span>
+                <span className="text-slate-400 text-xs shrink-0">{t('used_auto_fuel_estimation')}</span>
               </div>
+            </div>
+
+            {/* Driver Welcome & Safety Announcement Message */}
+            <div className="p-4 sm:p-5 bg-slate-800/80 rounded-2xl border border-slate-700/80 space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-700/70">
+                <div>
+                  <label className="font-bold text-slate-100 block text-xs flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-400" /> {t('driver_welcome_heading', 'Driver Welcome Message & Daily Dispatch Briefing')}
+                  </label>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {t('driver_welcome_sub', 'Broadcast a welcome message or safety reminder to drivers when they log into their portal. Select from suggested templates below or compose your own custom announcement.')}
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 self-start sm:self-auto shrink-0">
+                  {t('driver_ui_live_badge', 'Live on Driver Portal')}
+                </span>
+              </div>
+
+              {/* Active Message Textarea */}
+              <div>
+                <textarea
+                  rows={3}
+                  value={formData.driver_welcome_message || ''}
+                  onChange={e => setFormData({ ...formData, driver_welcome_message: e.target.value })}
+                  placeholder={t('driver_welcome_ph', 'Write a custom welcome greeting, safety directive, or shift advisory for drivers...')}
+                  className="w-full py-2.5 px-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs leading-relaxed focus:outline-none focus:border-amber-400 placeholder:text-slate-500 resize-none font-medium"
+                />
+              </div>
+
+              {/* Quick Suggestion Templates */}
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-1">
+                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    ⚡ {t('suggested_templates_label', 'Suggested Welcome Message Templates:')}
+                    <span className="text-[10px] text-slate-400 font-normal">({welcomeSuggestions.length})</span>
+                  </span>
+                  <div className="flex items-center gap-2.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={handleResetWelcomeSuggestions}
+                      className="text-xs text-slate-400 hover:text-amber-400 transition cursor-pointer underline font-medium"
+                      title={t('reset_defaults', 'Restore original suggested presets')}
+                    >
+                      {t('reset_defaults', 'Reset Defaults')}
+                    </button>
+                    <span className="text-[10px] text-slate-400">
+                      • {t('click_to_apply', 'Tap card to apply')}
+                    </span>
+                  </div>
+                </div>
+
+                {welcomeSuggestions.length === 0 ? (
+                  <div className="p-4 bg-slate-900/60 rounded-xl border border-dashed border-slate-700 text-center text-xs text-slate-400">
+                    No suggested templates remaining.{' '}
+                    <button
+                      type="button"
+                      onClick={handleResetWelcomeSuggestions}
+                      className="text-amber-400 hover:underline font-bold cursor-pointer"
+                    >
+                      Click here to reset defaults
+                    </button>{' '}
+                    or type a message below.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {welcomeSuggestions.map((sug, idx) => {
+                      const text = typeof sug === 'string' ? sug : sug.message;
+                      const title = typeof sug === 'string' ? `Template #${idx + 1}` : sug.title;
+                      const badge = typeof sug === 'string' ? 'Suggested' : sug.badge;
+                      const isSelected = formData.driver_welcome_message === text;
+
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => setFormData({ ...formData, driver_welcome_message: text })}
+                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between group relative ${
+                            isSelected
+                              ? 'bg-amber-500/20 border-amber-500/80 text-white shadow-sm ring-1 ring-amber-500/40'
+                              : 'bg-slate-900/90 border-slate-700/80 text-slate-300 hover:border-slate-600 hover:bg-slate-900'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="font-bold text-xs text-amber-400 group-hover:text-amber-300 flex items-center gap-1">
+                              {title}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                {badge}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteWelcomeSuggestion(idx);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
+                                title={t('delete_template', 'Delete this suggested template')}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                            "{text}"
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Add New Custom Suggested Template */}
+              <div className="flex items-center gap-2 pt-1 border-t border-slate-700/60">
+                <input
+                  type="text"
+                  placeholder={t('add_custom_welcome_ph', 'Add a new suggested welcome message to the template bank...')}
+                  value={newWelcomeSuggestionText}
+                  onChange={e => setNewWelcomeSuggestionText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddWelcomeSuggestion();
+                    }
+                  }}
+                  className="flex-1 py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder:text-slate-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddWelcomeSuggestion()}
+                  className="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition cursor-pointer shrink-0"
+                >
+                  + Add Template
+                </button>
+              </div>
+
+              {/* Live Driver Preview Box */}
+              {formData.driver_welcome_message && (
+                <div className="pt-2 border-t border-slate-700/60">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                    📱 Live Preview (Driver Dashboard Banner):
+                  </span>
+                  <div className="p-3 bg-slate-900 rounded-xl border border-amber-500/30 flex items-start gap-2.5 text-xs shadow-inner">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-0.5">
+                        Company Dispatch Notice
+                      </div>
+                      <p className="text-slate-200 leading-relaxed font-medium">
+                        {formData.driver_welcome_message}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Admin Credentials Info */}
@@ -546,19 +907,19 @@ export const SettingsView = () => {
                 <Shield className="w-4 h-4" /> System Administrator Username
               </span>
               <div className="text-[11px] text-slate-300 flex items-center gap-2 mt-1">
-                <span>Admin Login:</span>
-                <strong className="text-white font-mono bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-700">admin@sino.com</strong>
+                <span>{t('admin_login_label')}</span>
+                <strong className="text-white font-mono bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-700">soneschool1@gmail.com</strong>
               </div>
             </div>
 
             {/* Numbering Standards Info */}
             <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 space-y-1 text-slate-400">
-              <span className="font-bold text-slate-200 block text-xs">Standard Auto-numbering Prefixes:</span>
+              <span className="font-bold text-slate-200 block text-xs">{t('auto_numbering_prefixes')}</span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
-                <div>Trips: <strong className="text-amber-400 font-mono block">TR-000001</strong></div>
-                <div>Fuel Requests: <strong className="text-emerald-400 font-mono block">FR-000001</strong></div>
-                <div>Expenses: <strong className="text-red-400 font-mono block">EX-000001</strong></div>
-                <div>Maintenance: <strong className="text-blue-400 font-mono block">MT-000001</strong></div>
+                <div>{t('trips_prefix_label')} <strong className="text-amber-400 font-mono block">{t('ph_trip_number_example')}</strong></div>
+                <div>{t('fuel_requests_prefix_label')} <strong className="text-emerald-400 font-mono block">{t('ph_fuel_number_example')}</strong></div>
+                <div>{t('expenses_prefix_label')} <strong className="text-red-400 font-mono block">{t('ph_expense_number_example')}</strong></div>
+                <div>{t('maintenance_prefix_label')} <strong className="text-blue-400 font-mono block">{t('ph_maint_number_example')}</strong></div>
               </div>
             </div>
 
@@ -602,7 +963,7 @@ export const SettingsView = () => {
                 <div className="relative w-full sm:w-60">
                   <input
                     type="text"
-                    placeholder="Search name, phone, plate..."
+                    placeholder={t('search_name_phone_plate_ph')}
                     value={driverSearch}
                     onChange={e => setDriverSearch(e.target.value)}
                     className="w-full py-2 pl-9 pr-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
@@ -670,7 +1031,7 @@ export const SettingsView = () => {
                       <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-700/60 space-y-2 text-xs">
                         {/* Username / Email */}
                         <div className="flex justify-between items-center text-slate-300">
-                          <span className="text-slate-400 text-[11px]">SINO Username:</span>
+                          <span className="text-slate-400 text-[11px]">{t('sino_username_label')}</span>
                           <span className="font-mono font-bold text-amber-300 select-all">{sinoUsername}</span>
                         </div>
 
@@ -687,7 +1048,7 @@ export const SettingsView = () => {
                               </span>
                             </span>
                           ) : (
-                            <span className="text-slate-500 italic text-[11px]">Not configured</span>
+                            <span className="text-slate-500 italic text-[11px]">{t('not_configured')}</span>
                           )}
                         </div>
 
@@ -735,7 +1096,7 @@ export const SettingsView = () => {
                           className="py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 font-bold text-xs rounded-xl border border-amber-500/30 transition flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Edit className="w-3.5 h-3.5" />
-                          <span>Edit Full Info</span>
+                          <span>{t('edit_full_info')}</span>
                         </button>
 
                         <button
@@ -744,7 +1105,7 @@ export const SettingsView = () => {
                           className="py-2 px-3 bg-slate-700/80 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs rounded-xl border border-slate-600 transition flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Key className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Reset Password</span>
+                          <span>{t('reset_password_btn')}</span>
                         </button>
                       </div>
                     </div>
@@ -794,7 +1155,7 @@ export const SettingsView = () => {
                   <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 bg-slate-800/80 rounded-2xl border border-slate-700/80">
                     <input
                       type="text"
-                      placeholder="Fee Name (e.g. Modjo Expressway Toll)"
+                      placeholder={t('toll_modjo_ph')}
                       value={sug.name}
                       onChange={e => {
                         const updated = [...feeSuggestions];
@@ -810,7 +1171,7 @@ export const SettingsView = () => {
                         <input
                           type="number"
                           step="any"
-                          placeholder="Amount"
+                          placeholder={t('amount_ph')}
                           value={sug.amount}
                           onChange={e => {
                             const updated = [...feeSuggestions];
@@ -922,7 +1283,7 @@ export const SettingsView = () => {
               <div className="flex items-center gap-2 pt-1">
                 <input
                   type="text"
-                  placeholder="New issue preset (e.g. Steering Alignment / Radiator Hose)"
+                  placeholder={t('new_issue_preset_ph')}
                   value={newMaintLabel}
                   onChange={e => setNewMaintLabel(e.target.value)}
                   className="flex-1 py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
@@ -988,7 +1349,7 @@ export const SettingsView = () => {
                   type="number"
                   min="1"
                   step="any"
-                  placeholder="Enter liters (e.g. 250)"
+                  placeholder={t('enter_liters_ph', 'Enter liters (e.g. 250)')}
                   value={newPresetLiters}
                   onChange={e => setNewPresetLiters(e.target.value)}
                   onKeyDown={e => {
@@ -1009,13 +1370,611 @@ export const SettingsView = () => {
               </div>
             </div>
 
+            {/* Intermediate Transit Points & Multi-Drop Presets */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                <div>
+                  <h3 className="font-bold text-base text-white flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-amber-400" /> {t('intermediate_transit_points_presets', 'Intermediate Transit Points & Multi-Drop Presets')}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {t('transit_presets_desc', 'Configure transit waypoints, partial offloading hubs, and baseline prices (rate per quintal/ton, lump sum). Drivers and dispatchers will be offered these suggested rates when offloading cargo at transition waypoints.')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTransitSuggestions(DEFAULT_TRANSIT_SUGGESTIONS)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition cursor-pointer"
+                  >
+                    Reset Defaults
+                  </button>
+                </div>
+              </div>
+
+              {/* Transit Points List */}
+              <div className="space-y-3">
+                {transitSuggestions.map((tp, idx) => (
+                  <div key={tp.id || idx} className="p-3.5 bg-slate-850/80 rounded-2xl border border-slate-700/80 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('waypoint_name_label')}</label>
+                          <input
+                            type="text"
+                            value={tp.name}
+                            onChange={e => {
+                              const updated = [...transitSuggestions];
+                              updated[idx].name = e.target.value;
+                              setTransitSuggestions(updated);
+                            }}
+                            className="w-full py-1.5 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-bold"
+                            placeholder={t('waypoint_name_ph')}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('location_interchange_label')}</label>
+                          <input
+                            type="text"
+                            value={tp.location || ''}
+                            onChange={e => {
+                              const updated = [...transitSuggestions];
+                              updated[idx].location = e.target.value;
+                              setTransitSuggestions(updated);
+                            }}
+                            className="w-full py-1.5 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200"
+                            placeholder={t('location_interchange_ph')}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setTransitSuggestions(prev => prev.filter((_, i) => i !== idx))}
+                        className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition cursor-pointer self-end sm:self-center"
+                        title="Remove transit point preset"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('rate_per_ton_label')}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={tp.suggested_rate_per_ton || ''}
+                          onChange={e => {
+                            const updated = [...transitSuggestions];
+                            const val = parseFloat(e.target.value) || 0;
+                            updated[idx].suggested_rate_per_ton = val;
+                            if (val > 0) {
+                              updated[idx].suggested_rate_per_quintal = +(val / 10).toFixed(2);
+                              updated[idx].suggested_rate_per_kg = +(val / 1000).toFixed(3);
+                            }
+                            setTransitSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 pr-2 pl-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-emerald-400 font-mono font-bold text-right"
+                          placeholder="e.g. 350"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('rate_per_quintal_label')}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={tp.suggested_rate_per_quintal || ''}
+                          onChange={e => {
+                            const updated = [...transitSuggestions];
+                            updated[idx].suggested_rate_per_quintal = parseFloat(e.target.value) || 0;
+                            setTransitSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 pr-2 pl-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-emerald-300 font-mono font-bold text-right"
+                          placeholder={t('ph_number_35_example')}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('rate_per_kg_label')}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={tp.suggested_rate_per_kg || ''}
+                          onChange={e => {
+                            const updated = [...transitSuggestions];
+                            updated[idx].suggested_rate_per_kg = parseFloat(e.target.value) || 0;
+                            setTransitSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 pr-2 pl-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-cyan-400 font-mono font-bold text-right"
+                          placeholder="e.g. 0.35"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-amber-300 block font-semibold mb-0.5">{t('lump_sum_fixed_label')}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={tp.suggested_lump_sum || ''}
+                          onChange={e => {
+                            const updated = [...transitSuggestions];
+                            updated[idx].suggested_lump_sum = parseFloat(e.target.value) || 0;
+                            setTransitSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 pr-2 pl-3 bg-slate-900 border border-amber-500/50 rounded-xl text-xs text-amber-300 font-mono font-bold text-right"
+                          placeholder="e.g. 8500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('calculation_method_label')}</label>
+                        <select
+                          value={tp.default_pricing_method || 'per_ton'}
+                          onChange={e => {
+                            const updated = [...transitSuggestions];
+                            updated[idx].default_pricing_method = e.target.value;
+                            setTransitSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded-xl text-[11px] text-slate-200 font-bold"
+                        >
+                          <option value="per_ton">{t('per_ton_opt')}</option>
+                          <option value="per_quintal">{t('per_quintal_opt')}</option>
+                          <option value="per_kg">{t('per_kg_opt')}</option>
+                          <option value="lump_sum">{t('lump_sum_opt')}</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        value={tp.notes || ''}
+                        onChange={e => {
+                          const updated = [...transitSuggestions];
+                          updated[idx].notes = e.target.value;
+                          setTransitSuggestions(updated);
+                        }}
+                        className="w-full py-1 px-3 bg-slate-900/60 border border-slate-700/60 rounded-xl text-[11px] text-slate-300"
+                        placeholder={t('operational_notes_ph')}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add New Transit Point Preset Form */}
+              <div className="p-4 bg-slate-800/60 rounded-2xl border border-dashed border-slate-700 space-y-3">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> {t('add_new_intermediate_transit_point', 'Add New Intermediate Transit Point & Offload Rate')}
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <input
+                    type="text"
+                    placeholder={t('ph_waypoint_name_input')}
+                    value={newTransitForm.name}
+                    onChange={e => setNewTransitForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                  <input
+                    type="text"
+                    placeholder={t('ph_waypoint_loc_input')}
+                    value={newTransitForm.location}
+                    onChange={e => setNewTransitForm(prev => ({ ...prev, location: e.target.value }))}
+                    className="py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={t('rate_ton_ph')}
+                    value={newTransitForm.suggested_rate_per_ton}
+                    onChange={e => {
+                      const v = e.target.value;
+                      const num = parseFloat(v) || 0;
+                      setNewTransitForm(prev => ({
+                        ...prev,
+                        suggested_rate_per_ton: v,
+                        suggested_rate_per_quintal: num > 0 ? (num / 10).toFixed(2) : prev.suggested_rate_per_quintal,
+                        suggested_rate_per_kg: num > 0 ? (num / 1000).toFixed(3) : prev.suggested_rate_per_kg,
+                      }));
+                    }}
+                    className="py-2 px-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-emerald-400 font-mono text-right"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={t('rate_quintal_ph')}
+                    value={newTransitForm.suggested_rate_per_quintal}
+                    onChange={e => setNewTransitForm(prev => ({ ...prev, suggested_rate_per_quintal: e.target.value }))}
+                    className="py-2 px-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-emerald-300 font-mono text-right"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={t('rate_kg_ph')}
+                    value={newTransitForm.suggested_rate_per_kg}
+                    onChange={e => setNewTransitForm(prev => ({ ...prev, suggested_rate_per_kg: e.target.value }))}
+                    className="py-2 px-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-cyan-400 font-mono text-right"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={t('lumpsum_etb_ph')}
+                    value={newTransitForm.suggested_lump_sum}
+                    onChange={e => setNewTransitForm(prev => ({ ...prev, suggested_lump_sum: e.target.value }))}
+                    className="py-2 px-2.5 bg-slate-900 border border-amber-500/50 rounded-xl text-xs text-amber-300 font-mono text-right"
+                  />
+                  <select
+                    value={newTransitForm.default_pricing_method || 'per_quintal'}
+                    onChange={e => setNewTransitForm(prev => ({ ...prev, default_pricing_method: e.target.value }))}
+                    className="py-2 px-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200"
+                  >
+                    <option value="per_quintal">{t('per_quintal_opt')}</option>
+                    <option value="per_ton">{t('per_ton_opt')}</option>
+                    <option value="per_kg">{t('per_kg_opt')}</option>
+                    <option value="lump_sum">{t('lump_sum_type_badge')}</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder={t('ph_waypoint_notes_input')}
+                    value={newTransitForm.notes}
+                    onChange={e => setNewTransitForm(prev => ({ ...prev, notes: e.target.value }))}
+                    className="flex-1 py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newTransitForm.name.trim()) return;
+                      const id = newTransitForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30);
+                      const rateTon = parseFloat(newTransitForm.suggested_rate_per_ton) || 0;
+                      setTransitSuggestions(prev => [
+                        ...prev,
+                        {
+                          id: id || 'custom_tp_' + Date.now(),
+                          name: newTransitForm.name.trim(),
+                          location: newTransitForm.location.trim(),
+                          suggested_rate_per_ton: rateTon,
+                          suggested_rate_per_quintal: parseFloat(newTransitForm.suggested_rate_per_quintal) || (rateTon > 0 ? +(rateTon / 10).toFixed(2) : 0),
+                          suggested_rate_per_kg: parseFloat(newTransitForm.suggested_rate_per_kg) || (rateTon > 0 ? +(rateTon / 1000).toFixed(3) : 0),
+                          suggested_lump_sum: parseFloat(newTransitForm.suggested_lump_sum) || 0,
+                          default_pricing_method: newTransitForm.default_pricing_method || 'per_quintal',
+                          notes: newTransitForm.notes.trim(),
+                        }
+                      ]);
+                      setNewTransitForm({
+                        name: '',
+                        location: '',
+                        suggested_rate_per_ton: '',
+                        suggested_rate_per_quintal: '',
+                        suggested_rate_per_kg: '',
+                        suggested_lump_sum: '',
+                        default_pricing_method: 'per_ton',
+                        notes: '',
+                      });
+                    }}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer transition shrink-0"
+                  >
+                    + Add Transit Preset
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Final Destination Delivery Rates (Alongside Intermediate Transit Rates) */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                <div>
+                  <h3 className="font-bold text-base text-white flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-emerald-400" /> Final Destination Delivery Rates
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Configure standard delivery rates (per ton, quintal, kg, and lump sum) for primary project endpoints. Drivers can compare these alongside intermediate drop-off rates.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDestinationSuggestions(DEFAULT_DESTINATION_SUGGESTIONS)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 transition cursor-pointer"
+                  >
+                    Reset Defaults
+                  </button>
+                </div>
+              </div>
+
+              {/* Destination Rates List */}
+              <div className="space-y-3">
+                {destinationSuggestions.map((ds, idx) => (
+                  <div key={ds.id || idx} className="p-3.5 bg-slate-850/80 rounded-2xl border border-slate-700/80 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('destination_project_label')}</label>
+                          <input
+                            type="text"
+                            value={ds.name}
+                            onChange={e => {
+                              const updated = [...destinationSuggestions];
+                              updated[idx].name = e.target.value;
+                              setDestinationSuggestions(updated);
+                            }}
+                            className="w-full py-1.5 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-bold"
+                            placeholder={t('destination_project_ph')}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('location_zone_label')}</label>
+                          <input
+                            type="text"
+                            value={ds.location || ''}
+                            onChange={e => {
+                              const updated = [...destinationSuggestions];
+                              updated[idx].location = e.target.value;
+                              setDestinationSuggestions(updated);
+                            }}
+                            className="w-full py-1.5 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200"
+                            placeholder={t('location_zone_ph')}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setDestinationSuggestions(prev => prev.filter((_, i) => i !== idx))}
+                        className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition cursor-pointer self-end sm:self-center"
+                        title="Remove destination preset"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('rate_per_ton_label')}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={ds.suggested_rate_per_ton || ''}
+                          onChange={e => {
+                            const updated = [...destinationSuggestions];
+                            const val = parseFloat(e.target.value) || 0;
+                            updated[idx].suggested_rate_per_ton = val;
+                            if (val > 0) {
+                              updated[idx].suggested_rate_per_quintal = +(val / 10).toFixed(2);
+                              updated[idx].suggested_rate_per_kg = +(val / 1000).toFixed(3);
+                            }
+                            setDestinationSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 pr-2 pl-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-emerald-400 font-mono font-bold text-right"
+                          placeholder="e.g. 480"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('rate_per_quintal_label')}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={ds.suggested_rate_per_quintal || ''}
+                          onChange={e => {
+                            const updated = [...destinationSuggestions];
+                            updated[idx].suggested_rate_per_quintal = parseFloat(e.target.value) || 0;
+                            setDestinationSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 pr-2 pl-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-emerald-300 font-mono font-bold text-right"
+                          placeholder={t('ph_number_48_example')}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('rate_per_kg_label')}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={ds.suggested_rate_per_kg || ''}
+                          onChange={e => {
+                            const updated = [...destinationSuggestions];
+                            updated[idx].suggested_rate_per_kg = parseFloat(e.target.value) || 0;
+                            setDestinationSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 pr-2 pl-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-cyan-400 font-mono font-bold text-right"
+                          placeholder="e.g. 0.48"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-amber-300 block font-semibold mb-0.5">{t('lump_sum_fixed_label')}</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={ds.suggested_lump_sum || ''}
+                          onChange={e => {
+                            const updated = [...destinationSuggestions];
+                            updated[idx].suggested_lump_sum = parseFloat(e.target.value) || 0;
+                            setDestinationSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 pr-2 pl-3 bg-slate-900 border border-amber-500/50 rounded-xl text-xs text-amber-300 font-mono font-bold text-right"
+                          placeholder="e.g. 12000"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block font-semibold mb-0.5">{t('calculation_method_label')}</label>
+                        <select
+                          value={ds.default_pricing_method || 'per_ton'}
+                          onChange={e => {
+                            const updated = [...destinationSuggestions];
+                            updated[idx].default_pricing_method = e.target.value;
+                            setDestinationSuggestions(updated);
+                          }}
+                          className="w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded-xl text-[11px] text-slate-200 font-bold"
+                        >
+                          <option value="per_ton">{t('per_ton_opt')}</option>
+                          <option value="per_quintal">{t('per_quintal_opt')}</option>
+                          <option value="per_kg">{t('per_kg_opt')}</option>
+                          <option value="lump_sum">{t('lump_sum_opt')}</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        value={ds.notes || ''}
+                        onChange={e => {
+                          const updated = [...destinationSuggestions];
+                          updated[idx].notes = e.target.value;
+                          setDestinationSuggestions(updated);
+                        }}
+                        className="w-full py-1 px-3 bg-slate-900/60 border border-slate-700/60 rounded-xl text-[11px] text-slate-300"
+                        placeholder={t('ph_dest_ops_notes', 'Operational Notes (e.g. Final project offload site)')}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add New Destination Rate Form */}
+              <div className="p-4 bg-slate-800/60 rounded-2xl border border-dashed border-slate-700 space-y-3">
+                <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> {t('add_new_final_dest_rate_preset', 'Add New Final Destination Rate Preset')}
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <input
+                    type="text"
+                    placeholder={t('ph_dest_site_name_input', 'Project Site Name (e.g. Hawassa Industrial Park)')}
+                    value={newDestinationForm.name}
+                    onChange={e => setNewDestinationForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                  <input
+                    type="text"
+                    placeholder={t('ph_dest_loc_zone_input', 'Location / Zone (e.g. Hawassa South)')}
+                    value={newDestinationForm.location}
+                    onChange={e => setNewDestinationForm(prev => ({ ...prev, location: e.target.value }))}
+                    className="py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={t('rate_ton_ph', 'Rate / Ton')}
+                    value={newDestinationForm.suggested_rate_per_ton}
+                    onChange={e => {
+                      const v = e.target.value;
+                      const num = parseFloat(v) || 0;
+                      setNewDestinationForm(prev => ({
+                        ...prev,
+                        suggested_rate_per_ton: v,
+                        suggested_rate_per_quintal: num > 0 ? (num / 10).toFixed(2) : prev.suggested_rate_per_quintal,
+                        suggested_rate_per_kg: num > 0 ? (num / 1000).toFixed(3) : prev.suggested_rate_per_kg,
+                      }));
+                    }}
+                    className="py-2 px-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-emerald-400 font-mono text-right"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={t('rate_quintal_ph', 'Rate / Quintal')}
+                    value={newDestinationForm.suggested_rate_per_quintal}
+                    onChange={e => setNewDestinationForm(prev => ({ ...prev, suggested_rate_per_quintal: e.target.value }))}
+                    className="py-2 px-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-emerald-300 font-mono text-right"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={t('rate_kg_ph', 'Rate / KG')}
+                    value={newDestinationForm.suggested_rate_per_kg}
+                    onChange={e => setNewDestinationForm(prev => ({ ...prev, suggested_rate_per_kg: e.target.value }))}
+                    className="py-2 px-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-cyan-400 font-mono text-right"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder={t('lumpsum_etb_ph', 'Lump-Sum (ETB)')}
+                    value={newDestinationForm.suggested_lump_sum}
+                    onChange={e => setNewDestinationForm(prev => ({ ...prev, suggested_lump_sum: e.target.value }))}
+                    className="py-2 px-2.5 bg-slate-900 border border-amber-500/50 rounded-xl text-xs text-amber-300 font-mono text-right"
+                  />
+                  <select
+                    value={newDestinationForm.default_pricing_method || 'per_ton'}
+                    onChange={e => setNewDestinationForm(prev => ({ ...prev, default_pricing_method: e.target.value }))}
+                    className="py-2 px-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200"
+                  >
+                    <option value="per_ton">{t('per_ton_opt', 'Per Ton')}</option>
+                    <option value="per_quintal">{t('per_quintal_opt', 'Per Quintal')}</option>
+                    <option value="per_kg">{t('per_kg_opt', 'Per KG')}</option>
+                    <option value="lump_sum">{t('lump_sum_type_badge', 'Lump-Sum')}</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder={t('notes_delivery_gate_ph', 'Notes (e.g. Primary delivery gate)')}
+                    value={newDestinationForm.notes}
+                    onChange={e => setNewDestinationForm(prev => ({ ...prev, notes: e.target.value }))}
+                    className="flex-1 py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newDestinationForm.name.trim()) return;
+                      const id = newDestinationForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30);
+                      const rateTon = parseFloat(newDestinationForm.suggested_rate_per_ton) || 0;
+                      setDestinationSuggestions(prev => [
+                        ...prev,
+                        {
+                          id: id || 'custom_dest_' + Date.now(),
+                          name: newDestinationForm.name.trim(),
+                          location: newDestinationForm.location.trim(),
+                          suggested_rate_per_ton: rateTon,
+                          suggested_rate_per_quintal: parseFloat(newDestinationForm.suggested_rate_per_quintal) || (rateTon > 0 ? +(rateTon / 10).toFixed(2) : 0),
+                          suggested_rate_per_kg: parseFloat(newDestinationForm.suggested_rate_per_kg) || (rateTon > 0 ? +(rateTon / 1000).toFixed(3) : 0),
+                          suggested_lump_sum: parseFloat(newDestinationForm.suggested_lump_sum) || 0,
+                          default_pricing_method: newDestinationForm.default_pricing_method || 'per_ton',
+                          notes: newDestinationForm.notes.trim(),
+                        }
+                      ]);
+                      setNewDestinationForm({
+                        name: '',
+                        location: '',
+                        suggested_rate_per_ton: '',
+                        suggested_rate_per_quintal: '',
+                        suggested_rate_per_kg: '',
+                        suggested_lump_sum: '',
+                        default_pricing_method: 'per_ton',
+                        notes: '',
+                      });
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition shrink-0"
+                  >
+                    {t('add_dest_preset_btn', '+ Add Destination Preset')}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
               className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm rounded-2xl shadow-lg shadow-amber-500/25 flex items-center gap-2 touch-btn cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              {loading ? t('saving', 'Saving...') : 'Save All Suggestions & Presets'}
+              {loading ? t('saving', 'Saving...') : t('save_all_suggestions_presets', 'Save All Suggestions & Presets')}
             </button>
           </form>
         </div>
@@ -1032,7 +1991,7 @@ export const SettingsView = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-white">
-                    Change Password: {passwordModal.driver.full_name}
+                    {t('change_driver_password_title', 'Change Password')}: {passwordModal.driver.full_name}
                   </h3>
                   <p className="text-[11px] text-slate-400">
                     {passwordModal.driver.driver_number} • {passwordModal.driver.email || 'driver'}
@@ -1063,13 +2022,13 @@ export const SettingsView = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Enter New Password:
+                  {t('enter_new_password_label', 'Enter New Password:')}
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     required
-                    placeholder="Enter new password (min 4 characters)"
+                    placeholder={t('enter_new_password_ph', 'Enter new password (min 4 characters)')}
                     value={passwordModal.newPassword}
                     onChange={e => setPasswordModal(prev => ({ ...prev, newPassword: e.target.value }))}
                     className="w-full py-2.5 pl-3 pr-10 bg-slate-800 border border-slate-700 rounded-xl text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
@@ -1081,14 +2040,14 @@ export const SettingsView = () => {
 
               {/* Quick Preset Buttons */}
               <div className="space-y-1.5">
-                <span className="text-[11px] font-semibold text-slate-400 block">Quick 1-Click Password Options:</span>
+                <span className="text-[11px] font-semibold text-slate-400 block">{t('quick_password_options', 'Quick 1-Click Password Options:')}</span>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => setPasswordModal(prev => ({ ...prev, newPassword: 'driver123' }))}
                     className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 font-mono text-xs rounded-lg border border-slate-700 cursor-pointer"
                   >
-                    Reset to "driver123"
+                    {t('reset_to_driver123', 'Reset to "driver123"')}
                   </button>
                   <button
                     type="button"
@@ -1098,7 +2057,7 @@ export const SettingsView = () => {
                     }}
                     className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono text-xs rounded-lg border border-slate-700 cursor-pointer"
                   >
-                    Generate Random (e.g. drv7429)
+                    {t('generate_random_pwd', 'Generate Random (e.g. drv7429)')}
                   </button>
                 </div>
               </div>
@@ -1109,7 +2068,7 @@ export const SettingsView = () => {
                   onClick={() => setPasswordModal(prev => ({ ...prev, open: false }))}
                   className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white rounded-xl cursor-pointer"
                 >
-                  Cancel
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1117,7 +2076,7 @@ export const SettingsView = () => {
                   className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5 touch-btn"
                 >
                   <Key className="w-3.5 h-3.5" />
-                  {passwordModal.submitting ? 'Updating...' : 'Save Password'}
+                  {passwordModal.submitting ? t('updating', 'Updating...') : t('save_password_btn', 'Save Password')}
                 </button>
               </div>
             </form>
@@ -1137,12 +2096,12 @@ export const SettingsView = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-white">
-                    {editDriverModal.isNew ? 'Register New Driver Account' : `Edit Driver: ${editDriverModal.full_name}`}
+                    {editDriverModal.isNew ? t('register_driver_account', 'Register New Driver Account') : `${t('edit_driver', 'Edit Driver')}: ${editDriverModal.full_name}`}
                   </h3>
                   <p className="text-xs text-slate-400">
                     {editDriverModal.isNew 
-                      ? 'Create driver credentials with @sino.com username and phone login' 
-                      : 'Update credentials, phone number, vehicle assignment, and license'}
+                      ? t('create_driver_sub', 'Create driver credentials with @sino.com username and phone login')
+                      : t('update_driver_sub', 'Update credentials, phone number, vehicle assignment, and license')}
                   </p>
                 </div>
               </div>
@@ -1175,12 +2134,12 @@ export const SettingsView = () => {
                 {/* Full Legal Name */}
                 <div className="sm:col-span-2">
                   <label className="block font-semibold text-slate-300 mb-1">
-                    Full Legal Name <span className="text-red-400">*</span>
+                    {t('legal_full_name', 'Full Legal Name')} <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Abebe Kebede / Driver Name"
+                    placeholder={t('driver_name_sample_ph', 'e.g. Abebe Kebede / Driver Name')}
                     value={editDriverModal.full_name}
                     onChange={e => setEditDriverModal(prev => ({ ...prev, full_name: e.target.value }))}
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-medium"
@@ -1190,51 +2149,51 @@ export const SettingsView = () => {
                 {/* Username / Email with @sino.com indicator */}
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">
-                    SINO Username / Email <span className="text-amber-400 font-mono text-[11px]">(Named after SINO)</span>
+                    {t('sino_username_email', 'SINO Username / Email')} <span className="text-amber-400 font-mono text-[11px]">({t('named_after_sino', 'Named after SINO')})</span>
                   </label>
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="e.g. name@sino.com or name"
+                      placeholder={t('driver_email_sample_ph', 'e.g. name@sino.com or name')}
                       value={editDriverModal.email}
                       onChange={e => setEditDriverModal(prev => ({ ...prev, email: e.target.value }))}
                       className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-amber-300 font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400"
                     />
                   </div>
                   <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Suffix <strong className="text-amber-400 font-mono">@sino.com</strong> will be automatically added if omitted.
+                    {t('sino_suffix_hint', 'Suffix @sino.com will be automatically added if omitted.')}
                   </span>
                 </div>
 
                 {/* Phone Number (For Phone Login) */}
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                    <span>Phone Number</span>
+                    <span>{t('phone_number_label', 'Phone Number')}</span>
                     <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-0.5">
-                      <Phone className="w-3 h-3" /> Login Enabled
+                      <Phone className="w-3 h-3" /> {t('login_enabled', 'Login Enabled')}
                     </span>
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. +251 911 555 101 or 0911555101"
+                    placeholder={t('phone_sample_ph', 'e.g. +251 911 555 101 or 0911555101')}
                     value={editDriverModal.phone}
                     onChange={e => setEditDriverModal(prev => ({ ...prev, phone: e.target.value }))}
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Driver can log in using either this phone number or their @sino.com username.
+                    {t('driver_phone_login_desc', 'Driver can log in using either this phone number or their @sino.com username.')}
                   </span>
                 </div>
 
                 {/* Password / New Password */}
                 <div className="sm:col-span-2">
                   <label className="block font-semibold text-slate-300 mb-1">
-                    {editDriverModal.isNew ? 'Account Password' : 'Change / Reset Password (leave as is to keep)'}
+                    {editDriverModal.isNew ? t('account_password_label', 'Account Password') : t('change_pwd_keep_label', 'Change / Reset Password (leave as is to keep)')}
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="e.g. driver123"
+                      placeholder={t('driver_pwd_sample_ph', 'e.g. driver123')}
                       value={editDriverModal.password}
                       onChange={e => setEditDriverModal(prev => ({ ...prev, password: e.target.value }))}
                       className="flex-1 py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-emerald-400 font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400"
@@ -1254,7 +2213,7 @@ export const SettingsView = () => {
                       }}
                       className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs rounded-xl border border-slate-700 cursor-pointer shrink-0"
                     >
-                      Random
+                      {t('random_pwd_btn', 'Random')}
                     </button>
                   </div>
                 </div>
@@ -1262,11 +2221,11 @@ export const SettingsView = () => {
                 {/* License Number */}
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">
-                    Driver License Number
+                    {t('driver_license_num_label', 'Driver License Number')}
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. DL-90214-ET"
+                    placeholder={t('license_number_ph', 'DL-AA-123456')}
                     value={editDriverModal.license_number}
                     onChange={e => setEditDriverModal(prev => ({ ...prev, license_number: e.target.value }))}
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400"
@@ -1276,7 +2235,7 @@ export const SettingsView = () => {
                 {/* License Expiry */}
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">
-                    License Expiry Date
+                    {t('license_expiry_date_label', 'License Expiry Date')}
                   </label>
                   <input
                     type="date"
@@ -1289,14 +2248,14 @@ export const SettingsView = () => {
                 {/* Assigned Truck */}
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">
-                    Assigned Fleet Truck
+                    {t('assigned_fleet_truck_label', 'Assigned Fleet Truck')}
                   </label>
                   <select
                     value={editDriverModal.assigned_truck_id}
                     onChange={e => setEditDriverModal(prev => ({ ...prev, assigned_truck_id: e.target.value }))}
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400"
                   >
-                    <option value="">-- No Truck Assigned --</option>
+                    <option value="">-- {t('no_truck_assigned', 'No Truck Assigned')} --</option>
                     {trucks.map(trk => (
                       <option key={trk.id} value={trk.id}>
                         {trk.plate_number} {trk.model ? `(${trk.model})` : ''} - {trk.truck_number || ''}
@@ -1308,26 +2267,26 @@ export const SettingsView = () => {
                 {/* Status */}
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">
-                    Account Status
+                    {t('account_status_label', 'Account Status')}
                   </label>
                   <select
                     value={editDriverModal.status}
                     onChange={e => setEditDriverModal(prev => ({ ...prev, status: e.target.value }))}
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400 font-semibold"
                   >
-                    <option value="active">Active (Can Login & Drive)</option>
-                    <option value="inactive">Inactive / Suspended</option>
+                    <option value="active">{t('active_can_drive_opt', 'Active (Can Login & Drive)')}</option>
+                    <option value="inactive">{t('inactive_suspended', 'Inactive / Suspended')}</option>
                   </select>
                 </div>
 
                 {/* Internal Notes */}
                 <div className="sm:col-span-2">
                   <label className="block font-semibold text-slate-300 mb-1">
-                    Notes / Emergency Contact
+                    {t('notes_emergency_contact_label', 'Notes / Emergency Contact')}
                   </label>
                   <textarea
                     rows={2}
-                    placeholder="Emergency contacts, medical notes, or comments..."
+                    placeholder={t('notes_comments_ph', 'Emergency contacts, medical notes, or comments...')}
                     value={editDriverModal.notes}
                     onChange={e => setEditDriverModal(prev => ({ ...prev, notes: e.target.value }))}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 resize-none"
@@ -1342,7 +2301,7 @@ export const SettingsView = () => {
                   onClick={() => setEditDriverModal(prev => ({ ...prev, open: false }))}
                   className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white rounded-xl cursor-pointer"
                 >
-                  Cancel
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1350,7 +2309,7 @@ export const SettingsView = () => {
                   className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5 touch-btn"
                 >
                   <Save className="w-4 h-4" />
-                  {editDriverModal.submitting ? 'Saving...' : editDriverModal.isNew ? 'Create Driver' : 'Save Driver Information'}
+                  {editDriverModal.submitting ? t('saving', 'Saving...') : editDriverModal.isNew ? t('create_driver_btn', 'Create Driver') : t('save_driver_info_btn', 'Save Driver Information')}
                 </button>
               </div>
             </form>

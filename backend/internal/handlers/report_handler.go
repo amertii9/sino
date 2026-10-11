@@ -75,6 +75,11 @@ func (h *ReportHandler) GetDashboardStats(c *gin.Context) {
 	var paidPaymentsCount int
 	var totalPaidRevenue float64
 
+	// Intermediate Transition and Multi-drop counters
+	var transitionTripsCount int
+	var multiDropTripsCount int
+	var multiDropRevenue float64
+
 	// Process Trips
 	truckRevenueMap := make(map[string]float64)
 	truckTripsMap := make(map[string]int)
@@ -85,32 +90,49 @@ func (h *ReportHandler) GetDashboardStats(c *gin.Context) {
 		truckTripsMap[t.TruckID]++
 		truckPlateMap[t.TruckID] = t.TruckPlate
 
+		if t.HasTransition || len(t.TransitionPointIDs) > 0 || t.IsSplitDrop {
+			transitionTripsCount++
+		}
+		gross := t.GrossRevenue
+		if gross <= 0 {
+			gross = t.TotalRevenue
+		}
+
+		if t.IsSplitDrop || (t.TransitQuantity > 0 && t.DestinationQuantity > 0) {
+			multiDropTripsCount++
+			multiDropRevenue += gross
+		}
+
 		isPaid := (t.PaymentStatus == "paid")
 
 		if isPaid {
 			paidPaymentsCount++
-			totalPaidRevenue += t.TotalRevenue
-			truckRevenueMap[t.TruckID] += t.TotalRevenue
-			materialRevenueMap[t.MaterialName] += t.TotalRevenue
+			paid := t.PaidAmount
+			if paid <= 0 {
+				paid = gross
+			}
+			totalPaidRevenue += paid
+			truckRevenueMap[t.TruckID] += paid
+			materialRevenueMap[t.MaterialName] += paid
 
 			if !t.Date.Before(startOfDay) {
-				revenueToday += t.TotalRevenue
+				revenueToday += paid
 			}
 
 			if !t.Date.Before(startOfMonth) {
-				revenueMonth += t.TotalRevenue
+				revenueMonth += paid
 			}
 		} else {
 			// Trip payment is pending approval
 			pendingPaymentsCount++
-			totalPendingRevenue += t.TotalRevenue
+			totalPendingRevenue += gross
 
 			if !t.Date.Before(startOfDay) {
-				pendingRevenueToday += t.TotalRevenue
+				pendingRevenueToday += gross
 			}
 
 			if !t.Date.Before(startOfMonth) {
-				pendingRevenueMonth += t.TotalRevenue
+				pendingRevenueMonth += gross
 			}
 		}
 
@@ -178,18 +200,25 @@ func (h *ReportHandler) GetDashboardStats(c *gin.Context) {
 		truckStats = truckStats[:5]
 	}
 
+	var settings models.Settings
+	_ = h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings)
+
 	dieselPrice := 100.0
 	if dpStr := c.Query("diesel_price"); dpStr != "" {
 		if p, err := strconv.ParseFloat(dpStr, 64); err == nil && p > 0 {
 			dieselPrice = p
 		}
-	} else {
-		var settings models.Settings
-		if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err == nil && settings.DieselPrice > 0 {
-			dieselPrice = settings.DieselPrice
-		}
+	} else if settings.DieselPrice > 0 {
+		dieselPrice = settings.DieselPrice
 	}
 	fuelEstimation := h.computeFuelEstimation(ctx, dieselPrice)
+
+	transitionPointsCount, _ := h.DB.Sites.CountDocuments(ctx, bson.M{"type": "transition"})
+	var transitionSites []models.Site
+	if siteCur, err := h.DB.Sites.Find(ctx, bson.M{"type": "transition"}); err == nil {
+		_ = siteCur.All(ctx, &transitionSites)
+		siteCur.Close(ctx)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"total_trucks":          totalTrucks,
@@ -214,6 +243,13 @@ func (h *ReportHandler) GetDashboardStats(c *gin.Context) {
 		"total_pending_revenue":    totalPendingRevenue,
 		"paid_payments_count":      paidPaymentsCount,
 		"total_paid_revenue":       totalPaidRevenue,
+		"transition_trips_count":   transitionTripsCount,
+		"multi_drop_trips_count":    multiDropTripsCount,
+		"multi_drop_revenue":       multiDropRevenue,
+		"transition_points_count":  transitionPointsCount,
+		"reserve_fuel_balance_liters":   settings.ReserveFuelBalanceLiters,
+		"reserve_fuel_capacity_liters":  settings.ReserveFuelCapacityLiters,
+		"reserve_fuel_low_threshold":    settings.ReserveFuelLowThreshold,
 		"top_trucks":               truckStats,
 		"material_revenue":              materialRevenueMap,
 		"fuel_estimation":               fuelEstimation,
@@ -290,7 +326,11 @@ func (h *ReportHandler) GetTruckPerformanceReport(c *gin.Context) {
 			if trip.TruckID == t.ID.Hex() {
 				row.TripsCount++
 				row.QuantityTons += (trip.QuantityKg / 1000)
-				row.Revenue += trip.TotalRevenue
+				rev := trip.GrossRevenue
+				if rev <= 0 {
+					rev = trip.TotalRevenue
+				}
+				row.Revenue += rev
 			}
 		}
 
@@ -370,7 +410,11 @@ func (h *ReportHandler) GetDriverPerformanceReport(c *gin.Context) {
 			if trip.DriverID == d.UserID.Hex() {
 				row.TripsCount++
 				row.QuantityTons += (trip.QuantityKg / 1000)
-				row.Revenue += trip.TotalRevenue
+				rev := trip.GrossRevenue
+				if rev <= 0 {
+					rev = trip.TotalRevenue
+				}
+				row.Revenue += rev
 			}
 		}
 
@@ -416,7 +460,11 @@ func (h *ReportHandler) GetMaterialReport(c *gin.Context) {
 		}
 		statsMap[t.MaterialName].TripsCount++
 		statsMap[t.MaterialName].QuantityTons += (t.QuantityKg / 1000)
-		statsMap[t.MaterialName].Revenue += t.TotalRevenue
+		matRev := t.GrossRevenue
+		if matRev <= 0 {
+			matRev = t.TotalRevenue
+		}
+		statsMap[t.MaterialName].Revenue += matRev
 	}
 
 	res := make([]MatStat, 0)
@@ -460,7 +508,11 @@ func (h *ReportHandler) GetRouteReport(c *gin.Context) {
 		}
 		statsMap[key].TripsCount++
 		statsMap[key].QuantityTons += (t.QuantityKg / 1000)
-		statsMap[key].Revenue += t.TotalRevenue
+		routeRev := t.GrossRevenue
+		if routeRev <= 0 {
+			routeRev = t.TotalRevenue
+		}
+		statsMap[key].Revenue += routeRev
 	}
 
 	res := make([]RouteStat, 0)

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../../api/client';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatNumber, formatDate } from '../../utils/formatters';
 import {
   Chart as ChartJS,
@@ -67,6 +68,7 @@ ChartJS.register(
 );
 
 export const AdminDashboard = ({ onNavigate }) => {
+  const { user } = useAuth();
   const { t } = useLanguage();
   const { isDark } = useTheme();
   const [stats, setStats] = useState(null);
@@ -278,17 +280,17 @@ export const AdminDashboard = ({ onNavigate }) => {
     fetchStats();
   }, []);
 
-  // Chart styling colors based on current dark / light theme
+  // Chart styling colors based on current dark / light theme (matching sample_ui_2.jpg)
   const chartColors = useMemo(() => {
-    const text = isDark ? '#94a3b8' : '#334155';
-    const grid = isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(100, 116, 139, 0.15)';
-    const tooltipBg = isDark ? '#0f172a' : '#ffffff';
+    const text = isDark ? '#94a3b8' : '#64748b';
+    const grid = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(100, 116, 139, 0.08)';
+    const tooltipBg = isDark ? '#192033' : '#ffffff';
     const tooltipText = isDark ? '#f8fafc' : '#0f172a';
-    const tooltipBorder = isDark ? '#334155' : '#cbd5e1';
+    const tooltipBorder = isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
     return { text, grid, tooltipBg, tooltipText, tooltipBorder };
   }, [isDark]);
 
-  // Base options for bar / standard charts
+  // Base options for bar / standard charts (Capsule pill bars, zero vertical lines)
   const baseChartOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -296,7 +298,10 @@ export const AdminDashboard = ({ onNavigate }) => {
       legend: {
         labels: {
           color: chartColors.text,
-          font: { size: 11, weight: '600' }
+          font: { size: 11, weight: '600' },
+          usePointStyle: true,
+          pointStyle: 'circle',
+          padding: 16
         }
       },
       tooltip: {
@@ -305,9 +310,9 @@ export const AdminDashboard = ({ onNavigate }) => {
         bodyColor: chartColors.text,
         borderColor: chartColors.tooltipBorder,
         borderWidth: 1,
-        padding: 10,
-        cornerRadius: 10,
-        boxPadding: 4,
+        padding: 12,
+        cornerRadius: 14,
+        boxPadding: 6,
         callbacks: {
           label: (context) => ` ${context.dataset.label || ''}: ${formatCurrency(context.raw || 0)}`
         }
@@ -315,8 +320,9 @@ export const AdminDashboard = ({ onNavigate }) => {
     },
     scales: {
       x: {
-        ticks: { color: chartColors.text, font: { size: 10, weight: '500' } },
-        grid: { color: chartColors.grid }
+        ticks: { color: chartColors.text, font: { size: 11, weight: '500' } },
+        grid: { display: false },
+        border: { display: false }
       },
       y: {
         ticks: {
@@ -328,14 +334,15 @@ export const AdminDashboard = ({ onNavigate }) => {
             return value;
           }
         },
-        grid: { color: chartColors.grid }
+        grid: { color: chartColors.grid },
+        border: { display: false }
       }
     }
   }), [chartColors]);
 
   const currencyTooltipOptions = baseChartOptions;
 
-  // 1. Financial Performance Bar Chart Data
+  // 1. Financial Performance Bar Chart Data (Capsule Pill Bars like sample_ui_2.jpg)
   const financialChartData = useMemo(() => {
     if (chartTimeframe === 'month') {
       return {
@@ -357,21 +364,16 @@ export const AdminDashboard = ({ onNavigate }) => {
               stats?.monthly_net_profit || 0
             ],
             backgroundColor: [
-              'rgba(16, 185, 129, 0.85)', // emerald
-              'rgba(249, 115, 22, 0.85)',  // orange
-              'rgba(168, 85, 247, 0.85)',  // purple
-              'rgba(239, 68, 68, 0.85)',   // red
-              'rgba(6, 182, 212, 0.85)',   // cyan
+              '#10b981', // emerald
+              '#f97316', // orange
+              '#8b5cf6', // purple / violet
+              '#ef4444', // red
+              '#06b6d4', // cyan
             ],
-            borderColor: [
-              '#10b981',
-              '#f97316',
-              '#a855f7',
-              '#ef4444',
-              '#06b6d4',
-            ],
-            borderWidth: 1.5,
-            borderRadius: 8,
+            borderRadius: 9999,
+            borderSkipped: false,
+            barThickness: 20,
+            maxBarThickness: 28,
           }
         ]
       };
@@ -392,13 +394,14 @@ export const AdminDashboard = ({ onNavigate }) => {
             stats?.profit_today || 0
           ],
           backgroundColor: [
-            'rgba(16, 185, 129, 0.85)',
-            'rgba(239, 68, 68, 0.85)',
-            'rgba(6, 182, 212, 0.85)'
+            '#10b981',
+            '#ef4444',
+            '#06b6d4'
           ],
-          borderColor: ['#10b981', '#ef4444', '#06b6d4'],
-          borderWidth: 1.5,
-          borderRadius: 8,
+          borderRadius: 9999,
+          borderSkipped: false,
+          barThickness: 22,
+          maxBarThickness: 32,
         }
       ]
     };
@@ -410,8 +413,8 @@ export const AdminDashboard = ({ onNavigate }) => {
     const labels = Object.keys(matMap);
     const data = Object.values(matMap);
     const colors = [
-      '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6',
-      '#ec4899', '#3b82f6', '#f97316', '#14b8a6'
+      '#6366f1', '#10b981', '#f59e0b', '#06b6d4',
+      '#ec4899', '#8b5cf6', '#f97316', '#14b8a6'
     ];
     return {
       labels: labels.length ? labels : ['No Data'],
@@ -419,15 +422,15 @@ export const AdminDashboard = ({ onNavigate }) => {
         {
           data: data.length ? data : [1],
           backgroundColor: data.length ? colors.slice(0, labels.length) : ['#64748b'],
-          borderColor: isDark ? '#0f172a' : '#ffffff',
-          borderWidth: 2,
+          borderColor: isDark ? '#192033' : '#ffffff',
+          borderWidth: 3,
           hoverOffset: 6
         }
       ]
     };
   }, [stats, isDark]);
 
-  // Doughnut options
+  // Doughnut options (High cutout, rounded segments, clean circle legend)
   const doughnutOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -436,8 +439,10 @@ export const AdminDashboard = ({ onNavigate }) => {
         position: 'bottom',
         labels: {
           color: chartColors.text,
-          padding: 12,
-          font: { size: 11, weight: '600' }
+          padding: 14,
+          font: { size: 11, weight: '600' },
+          usePointStyle: true,
+          pointStyle: 'circle'
         }
       },
       tooltip: {
@@ -446,8 +451,8 @@ export const AdminDashboard = ({ onNavigate }) => {
         bodyColor: chartColors.text,
         borderColor: chartColors.tooltipBorder,
         borderWidth: 1,
-        padding: 10,
-        cornerRadius: 10,
+        padding: 12,
+        cornerRadius: 14,
         callbacks: {
           label: (context) => {
             const val = context.raw || 0;
@@ -458,10 +463,61 @@ export const AdminDashboard = ({ onNavigate }) => {
         }
       }
     },
-    cutout: '62%'
+    cutout: '74%',
+    spacing: 4,
+    borderRadius: 8
   }), [chartColors, stats]);
 
-  // 3. Top Trucks Grouped Bar Chart Data
+  // Radial Donut Ring Gauge for Company Yard Reserve Fuel Tank (matching "75% Successful Task" in sample_ui_2.jpg)
+  const reserveTankGaugeData = useMemo(() => {
+    const balance = stats?.reserve_fuel_balance_liters ?? 5000;
+    const capacity = stats?.reserve_fuel_capacity_liters || 10000;
+    const remaining = Math.max(0, capacity - balance);
+    const lowThresh = stats?.reserve_fuel_low_threshold ?? 1500;
+
+    let activeColor = '#6366f1'; // Indigo like sample_ui_2.jpg
+    if (balance <= 0) activeColor = '#ef4444';
+    else if (balance <= lowThresh) activeColor = '#f59e0b';
+    else activeColor = '#6366f1';
+
+    const trackColor = isDark ? '#232b40' : '#e2e8f0';
+
+    return {
+      labels: ['In Stock (L)', 'Remaining Capacity (L)'],
+      datasets: [
+        {
+          data: [balance, remaining],
+          backgroundColor: [activeColor, trackColor],
+          borderWidth: 0,
+          borderRadius: 9999,
+          cutout: '78%'
+        }
+      ]
+    };
+  }, [stats, isDark]);
+
+  const reserveTankGaugeOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: chartColors.tooltipBg,
+        titleColor: chartColors.tooltipText,
+        bodyColor: chartColors.text,
+        borderColor: chartColors.tooltipBorder,
+        borderWidth: 1,
+        padding: 10,
+        cornerRadius: 12,
+        callbacks: {
+          label: (context) => ` ${context.label}: ${formatNumber(context.raw)} L`
+        }
+      }
+    },
+    cutout: '78%'
+  }), [chartColors]);
+
+  // 3. Top Trucks Grouped Bar Chart Data (Capsule Pill Bars)
   const topTrucksChartData = useMemo(() => {
     const trucks = stats?.top_trucks || [];
     const labels = trucks.map(trk => trk.truck_plate || 'Truck');
@@ -471,32 +527,35 @@ export const AdminDashboard = ({ onNavigate }) => {
         {
           label: t('revenue', 'Revenue (ETB)'),
           data: trucks.map(trk => trk.revenue || 0),
-          backgroundColor: 'rgba(16, 185, 129, 0.85)',
-          borderColor: '#10b981',
-          borderWidth: 1,
-          borderRadius: 6
+          backgroundColor: '#10b981',
+          borderRadius: 9999,
+          borderSkipped: false,
+          barThickness: 12,
+          maxBarThickness: 16
         },
         {
           label: t('profit', 'Net Profit (ETB)'),
           data: trucks.map(trk => trk.profit || 0),
-          backgroundColor: 'rgba(6, 182, 212, 0.85)',
-          borderColor: '#06b6d4',
-          borderWidth: 1,
-          borderRadius: 6
+          backgroundColor: '#6366f1',
+          borderRadius: 9999,
+          borderSkipped: false,
+          barThickness: 12,
+          maxBarThickness: 16
         },
         {
           label: t('expense', 'Expense (ETB)'),
           data: trucks.map(trk => trk.expense || 0),
-          backgroundColor: 'rgba(239, 68, 68, 0.85)',
-          borderColor: '#ef4444',
-          borderWidth: 1,
-          borderRadius: 6
+          backgroundColor: '#ef4444',
+          borderRadius: 9999,
+          borderSkipped: false,
+          barThickness: 12,
+          maxBarThickness: 16
         }
       ]
     };
   }, [stats, t]);
 
-  // 4. Recent Operations Trend (Revenue & Quantity over days)
+  // 4. Recent Operations Trend (Spline Wave Line Chart like sample_ui_2.jpg "Activity")
   const tripTrendsChartData = useMemo(() => {
     if (!recentTrips || recentTrips.length === 0) return null;
     const dateMap = {};
@@ -505,7 +564,17 @@ export const AdminDashboard = ({ onNavigate }) => {
       if (!dateMap[d]) {
         dateMap[d] = { revenue: 0, tons: 0, count: 0 };
       }
-      dateMap[d].revenue += Number(tr.total_revenue || 0);
+      const tVal = tr.transit_pricing_method === 'lump_sum'
+        ? (tr.transit_lump_sum || tr.transit_revenue || 0)
+        : (parseFloat(tr.transit_quantity) || 0) * (parseFloat(tr.transit_unit_price || tr.transit_unit_price_split) || 0);
+      const dVal = tr.destination_pricing_method === 'lump_sum'
+        ? (tr.destination_lump_sum || tr.destination_revenue || 0)
+        : (parseFloat(tr.destination_quantity) || 0) * (parseFloat(tr.destination_unit_price || tr.destination_unit_price_split) || 0);
+      const netRev = tr.is_split_drop
+        ? ((tVal + dVal) - (tr.total_additional_fees || 0))
+        : Number(tr.total_revenue || 0);
+
+      dateMap[d].revenue += netRev;
       dateMap[d].tons += Number(tr.quantity || 0);
       dateMap[d].count += 1;
     });
@@ -518,22 +587,27 @@ export const AdminDashboard = ({ onNavigate }) => {
           type: 'line',
           label: t('revenue', 'Revenue (ETB)'),
           data: dates.map(d => dateMap[d].revenue),
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99, 102, 241, 0.12)',
           fill: true,
-          tension: 0.35,
+          tension: 0.45,
+          cubicInterpolationMode: 'monotone',
+          borderWidth: 3.5,
           yAxisID: 'y',
-          pointRadius: 4,
+          pointRadius: 0,
           pointHoverRadius: 6,
+          pointHoverBackgroundColor: '#ffffff',
+          pointHoverBorderColor: '#6366f1',
+          pointHoverBorderWidth: 3
         },
         {
           type: 'bar',
           label: t('volume_tons', 'Cargo Volume (Tons)'),
           data: dates.map(d => Math.round(dateMap[d].tons)),
-          backgroundColor: 'rgba(245, 158, 11, 0.65)',
-          borderColor: '#f59e0b',
-          borderWidth: 1,
-          borderRadius: 6,
+          backgroundColor: 'rgba(245, 158, 11, 0.75)',
+          borderRadius: 9999,
+          borderSkipped: false,
+          barThickness: 12,
           yAxisID: 'y1'
         }
       ]
@@ -545,7 +619,13 @@ export const AdminDashboard = ({ onNavigate }) => {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        labels: { color: chartColors.text, font: { size: 11, weight: '600' } }
+        labels: {
+          color: chartColors.text,
+          font: { size: 11, weight: '600' },
+          usePointStyle: true,
+          pointStyle: 'circle',
+          padding: 16
+        }
       },
       tooltip: {
         backgroundColor: chartColors.tooltipBg,
@@ -553,14 +633,15 @@ export const AdminDashboard = ({ onNavigate }) => {
         bodyColor: chartColors.text,
         borderColor: chartColors.tooltipBorder,
         borderWidth: 1,
-        padding: 10,
-        cornerRadius: 10,
+        padding: 12,
+        cornerRadius: 14,
       }
     },
     scales: {
       x: {
         ticks: { color: chartColors.text, font: { size: 10 } },
-        grid: { color: chartColors.grid }
+        grid: { display: false },
+        border: { display: false }
       },
       y: {
         type: 'linear',
@@ -574,19 +655,21 @@ export const AdminDashboard = ({ onNavigate }) => {
             return value;
           }
         },
-        grid: { color: chartColors.grid }
+        grid: { color: chartColors.grid },
+        border: { display: false }
       },
       y1: {
         type: 'linear',
         display: true,
         position: 'right',
         ticks: { color: '#f59e0b', font: { size: 10 } },
-        grid: { drawOnChartArea: false }
+        grid: { display: false },
+        border: { display: false }
       }
     }
   }), [chartColors]);
 
-  // 5. Fuel Efficiency Benchmark by Truck (L/100km)
+  // 5. Fuel Efficiency Benchmark by Truck (L/100km) (Capsule Pill Bars)
   const truckFuelChartData = useMemo(() => {
     const trucks = stats?.fuel_estimation?.trucks || [];
     if (!trucks.length) return null;
@@ -594,9 +677,9 @@ export const AdminDashboard = ({ onNavigate }) => {
     const labels = trucks.map(t => t.truck_plate);
     const data = trucks.map(t => Number(t.liters_per_100km || 0));
     const bgColors = data.map(v => {
-      if (v <= 40) return 'rgba(16, 185, 129, 0.85)'; // Good (green)
-      if (v <= 50) return 'rgba(245, 158, 11, 0.85)'; // Moderate (amber)
-      return 'rgba(239, 68, 68, 0.85)'; // High consumption (red)
+      if (v <= 40) return '#10b981'; // Good (green)
+      if (v <= 50) return '#f59e0b'; // Moderate (amber)
+      return '#ef4444'; // High consumption (red)
     });
 
     return {
@@ -606,8 +689,10 @@ export const AdminDashboard = ({ onNavigate }) => {
           label: 'Liters / 100km',
           data,
           backgroundColor: bgColors,
-          borderWidth: 1,
-          borderRadius: 6
+          borderRadius: 9999,
+          borderSkipped: false,
+          barThickness: 16,
+          maxBarThickness: 22
         }
       ]
     };
@@ -624,8 +709,8 @@ export const AdminDashboard = ({ onNavigate }) => {
         bodyColor: chartColors.text,
         borderColor: chartColors.tooltipBorder,
         borderWidth: 1,
-        padding: 10,
-        cornerRadius: 10,
+        padding: 12,
+        cornerRadius: 14,
         callbacks: {
           label: (context) => ` Consumption: ${context.raw} L / 100km`
         }
@@ -634,11 +719,13 @@ export const AdminDashboard = ({ onNavigate }) => {
     scales: {
       x: {
         ticks: { color: chartColors.text, font: { size: 10 } },
-        grid: { color: chartColors.grid }
+        grid: { display: false },
+        border: { display: false }
       },
       y: {
         ticks: { color: chartColors.text, font: { size: 10 } },
-        grid: { color: chartColors.grid }
+        grid: { color: chartColors.grid },
+        border: { display: false }
       }
     }
   }), [chartColors]);
@@ -653,123 +740,267 @@ export const AdminDashboard = ({ onNavigate }) => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* 1. TOP CARDS (Fleet Overview & Key Operational Indicators) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2.5 sm:gap-3.5">
-        {/* Trucks */}
-        <div className="p-3 sm:p-4 bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl relative overflow-hidden">
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-400">{t('total_trucks', 'Total Trucks')}</span>
-            <span className="text-emerald-400 text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 px-1.5 sm:px-2 py-0.5 rounded-full">
-              {stats?.active_trucks || 0} {t('active_trucks', 'Active')}
-            </span>
+      {/* 0. HERO GREETING SECTION (Matching Reference Design sample_ui.jpg) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-1">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            Hi, {user?.full_name || 'Fleet Administrator'}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+            {t('dashboard_greeting_sub', 'This is your fleet operational overview so far')}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchStats()}
+            disabled={loading || refreshingFuel}
+            className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            title="Refresh fleet data"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-amber-500 ${loading || refreshingFuel ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 1. TOP OVERVIEW & FINANCIAL FLOW (Matching Reference Design sample_ui.jpg) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4 items-stretch">
+        {/* Left Column (Top Left): 8 Operational Overview Cards */}
+        <div className="lg:col-span-5 xl:col-span-5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-2.5 sm:gap-3">
+          {/* Trucks */}
+          <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl relative overflow-hidden shadow-xs hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Truck className="w-4 h-4" />
+              </div>
+              <span className="text-emerald-600 dark:text-emerald-400 text-[10px] sm:text-[11px] font-bold bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200/60 dark:border-emerald-500/30 px-2 py-0.5 rounded-full">
+                {stats?.active_trucks || 0} {t('active_trucks', 'Active')}
+              </span>
+            </div>
+            <div className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white mt-2 tracking-tight font-mono">
+              {stats?.total_trucks || 0}
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">{t('total_trucks', 'Total Trucks')}</div>
           </div>
-          <div className="text-xl sm:text-3xl font-black text-white mt-1.5 sm:mt-2">
-            {stats?.total_trucks || 0}
+
+          {/* Drivers */}
+          <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl relative overflow-hidden shadow-xs hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4" />
+              </div>
+              <span className="text-amber-600 dark:text-amber-400 text-[10px] sm:text-[11px] font-bold bg-amber-50 dark:bg-amber-500/15 border border-amber-200/60 dark:border-amber-500/30 px-2 py-0.5 rounded-full">
+                Active
+              </span>
+            </div>
+            <div className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white mt-2 tracking-tight font-mono">
+              {stats?.total_drivers || 0}
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">{t('total_drivers', 'Total Drivers')}</div>
           </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">{t('fleet_working_avail', 'Fleet working & available')}</div>
+
+          {/* Trips Today */}
+          <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl relative overflow-hidden shadow-xs hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Activity className="w-4 h-4" />
+              </div>
+              <span className="text-blue-600 dark:text-blue-400 text-[10px] sm:text-[11px] font-bold bg-blue-50 dark:bg-blue-500/15 border border-blue-200/60 dark:border-blue-500/30 px-2 py-0.5 rounded-full">
+                {formatNumber(stats?.quantity_today || 0)} t
+              </span>
+            </div>
+            <div className="text-xl sm:text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-2 tracking-tight font-mono">
+              {stats?.trips_today || 0}
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">{t('trips_today', 'Trips Today')}</div>
+          </div>
+
+          {/* Average Trip Distance */}
+          <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl relative overflow-hidden shadow-xs hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-full bg-cyan-50 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                <Route className="w-4 h-4" />
+              </div>
+              <span className="text-cyan-600 dark:text-cyan-400 text-[10px] sm:text-[11px] font-bold bg-cyan-50 dark:bg-cyan-500/15 border border-cyan-200/60 dark:border-cyan-500/30 px-2 py-0.5 rounded-full">
+                KM / Trip
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-extrabold text-cyan-600 dark:text-cyan-400 font-mono tracking-tight">
+                {formatNumber(stats?.avg_trip_distance_km ?? stats?.fuel_estimation?.avg_trip_distance_km ?? 0)}
+              </span>
+              <span className="text-[11px] text-slate-400 font-bold">km</span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">{t('avg_trip_distance', 'Avg Trip Distance')}</div>
+          </div>
+
+          {/* Average Fuel Consumption */}
+          <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl relative overflow-hidden shadow-xs hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Fuel className="w-4 h-4" />
+              </div>
+              <span className="text-amber-600 dark:text-amber-400 text-[10px] sm:text-[11px] font-bold bg-amber-50 dark:bg-amber-500/15 border border-amber-200/60 dark:border-amber-500/30 px-2 py-0.5 rounded-full">
+                L / km
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-xl sm:text-2xl font-extrabold text-amber-600 dark:text-amber-400 font-mono tracking-tight">
+                {stats?.avg_fuel_consumption_l_per_km !== undefined
+                  ? Number(stats.avg_fuel_consumption_l_per_km).toFixed(3)
+                  : (stats?.fuel_estimation?.liters_per_km !== undefined ? Number(stats.fuel_estimation.liters_per_km).toFixed(3) : '0.000')}
+              </span>
+              <span className="text-[11px] text-slate-400 font-bold">{t('liters_per_km_unit') || 'L/km'}</span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">{t('avg_fuel_consumption', 'Avg Fuel Consumption')}</div>
+          </div>
+
+          {/* Intermediate Transit & Multi-Drop Hauls Card */}
+          <div
+            onClick={() => onNavigate('trips')}
+            className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-500/50 cursor-pointer rounded-3xl relative overflow-hidden shadow-xs hover:shadow-md transition-all"
+          >
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-full bg-purple-50 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <span className="text-purple-600 dark:text-purple-400 text-[10px] sm:text-[11px] font-bold bg-purple-50 dark:bg-purple-500/15 border border-purple-200/60 dark:border-purple-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                {stats?.transition_points_count || 0} Hubs
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-xl sm:text-2xl font-extrabold text-purple-600 dark:text-purple-400 font-mono tracking-tight">
+                {stats?.transition_trips_count || 0}
+              </span>
+              <span className="text-[11px] text-slate-400 font-bold">{t('driver_trips_kpi') || 'trips'}</span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">Transit & Multi-Drop</div>
+          </div>
+
+          {/* Pending Fuel Requests */}
+          <div
+            onClick={() => onNavigate('fuel')}
+            className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/50 cursor-pointer rounded-3xl relative overflow-hidden shadow-xs hover:shadow-md transition-all"
+          >
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Fuel className="w-4 h-4" />
+              </div>
+              <span className="text-amber-600 dark:text-amber-400 text-[10px] sm:text-[11px] font-bold bg-amber-50 dark:bg-amber-500/15 border border-amber-200/60 dark:border-amber-500/30 px-2 py-0.5 rounded-full">
+                Review
+              </span>
+            </div>
+            <div className={`text-xl sm:text-2xl font-extrabold mt-2 tracking-tight font-mono ${
+              stats?.pending_fuel_requests > 0 ? 'text-amber-500 animate-pulse' : 'text-slate-900 dark:text-white'
+            }`}>
+              {stats?.pending_fuel_requests || 0}
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">{t('pending_fuel_reqs', 'Pending Fuel Requests')}</div>
+          </div>
+
+          {/* Pending Payments Card */}
+          <div
+            onClick={() => onNavigate('payments')}
+            className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/50 cursor-pointer rounded-3xl relative overflow-hidden shadow-xs hover:shadow-md transition-all"
+          >
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <span className="text-amber-600 dark:text-amber-400 text-[10px] sm:text-[11px] font-bold bg-amber-50 dark:bg-amber-500/15 border border-amber-200/60 dark:border-amber-500/30 px-2 py-0.5 rounded-full">
+                Collection
+              </span>
+            </div>
+            <div className={`text-xl sm:text-2xl font-extrabold mt-2 tracking-tight font-mono ${
+              stats?.pending_payments_count > 0 ? 'text-amber-500 animate-pulse' : 'text-slate-900 dark:text-white'
+            }`}>
+              {stats?.pending_payments_count || 0}
+            </div>
+            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">{t('pending_payments', 'Pending Payments')}</div>
+          </div>
         </div>
 
-        {/* Drivers */}
-        <div className="p-3 sm:p-4 bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl relative overflow-hidden">
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-400">{t('total_drivers', 'Total Drivers')}</span>
-            <Users className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-xl sm:text-3xl font-black text-white mt-1.5 sm:mt-2">
-            {stats?.total_drivers || 0}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">{t('active_operators', 'Active licensed operators')}</div>
-        </div>
+        {/* Right Column (Top Right): Revenue vs Expenses & Net Profit */}
+        <div className="lg:col-span-7 xl:col-span-7 flex flex-col">
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col justify-between h-full space-y-3.5">
+            {/* Header: Title & Timeframe switcher */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-5 h-5 text-emerald-500" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                    {t('financial_flow_title', 'Revenue vs Expenses & Net Profit')}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {t('financial_flow_sub', 'Cashflow breakdown and operational margins')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex bg-slate-100 dark:bg-slate-800/90 border border-slate-200/70 dark:border-slate-700 p-0.5 rounded-xl text-xs">
+                <button
+                  type="button"
+                  onClick={() => setChartTimeframe('month')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                    chartTimeframe === 'month'
+                      ? 'bg-amber-500 text-slate-950 shadow'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {t('month', 'Month')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartTimeframe('today')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                    chartTimeframe === 'today'
+                      ? 'bg-amber-500 text-slate-950 shadow'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {t('today', 'Today')}
+                </button>
+              </div>
+            </div>
 
-        {/* Trips Today */}
-        <div className="p-3 sm:p-4 bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl relative overflow-hidden">
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-400">{t('trips_today', 'Trips Today')}</span>
-            <span className="text-amber-400 text-[9px] sm:text-[10px] font-bold bg-amber-500/10 px-1.5 sm:px-2 py-0.5 rounded-full">
-              {formatNumber(stats?.quantity_today || 0)} t
-            </span>
-          </div>
-          <div className="text-xl sm:text-3xl font-black text-amber-400 mt-1.5 sm:mt-2">
-            {stats?.trips_today || 0}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1 truncate">{t('hauling_today', 'Hauling operations today')}</div>
-        </div>
+            {/* Bar Chart Canvas */}
+            <div className="w-full relative flex-1 min-h-[220px] h-52 sm:h-64">
+              <Bar data={financialChartData} options={currencyTooltipOptions} />
+            </div>
 
-        {/* Average Trip Distance */}
-        <div className="p-3 sm:p-4 bg-slate-900 border-2 border-cyan-500/30 rounded-2xl sm:rounded-3xl relative overflow-hidden">
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] sm:text-xs font-semibold text-cyan-300">{t('avg_trip_distance', 'Avg Trip Distance')}</span>
-            <span className="text-cyan-400 text-[9px] sm:text-[10px] font-bold bg-cyan-500/15 border border-cyan-500/30 px-1.5 sm:px-2 py-0.5 rounded-full">
-              KM / Trip
-            </span>
-          </div>
-          <div className="mt-1.5 sm:mt-2 flex items-baseline gap-1">
-            <span className="text-xl sm:text-3xl font-black text-cyan-400 font-mono">
-              {formatNumber(stats?.avg_trip_distance_km ?? stats?.fuel_estimation?.avg_trip_distance_km ?? 0)}
-            </span>
-            <span className="text-[10px] sm:text-xs text-cyan-300/80 font-bold">km</span>
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 truncate" title={`Today: ${formatNumber(stats?.today_avg_trip_distance_km || 0)} km • Month: ${formatNumber(stats?.month_avg_trip_distance_km || 0)} km`}>
-            {stats?.month_avg_trip_distance_km ? `Mo avg: ${formatNumber(stats.month_avg_trip_distance_km)} km` : t('fleet_avg_haul', 'Fleet average haul')}
-          </div>
-        </div>
-
-        {/* Average Fuel Consumption (Liter per Kilometer) */}
-        <div className="p-3 sm:p-4 bg-slate-900 border-2 border-amber-500/30 rounded-2xl sm:rounded-3xl relative overflow-hidden">
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] sm:text-xs font-semibold text-amber-300">{t('avg_fuel_consumption', 'Avg Fuel Consumption')}</span>
-            <span className="text-amber-400 text-[9px] sm:text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 sm:px-2 py-0.5 rounded-full">
-              L / km
-            </span>
-          </div>
-          <div className="mt-1.5 sm:mt-2 flex items-baseline gap-1">
-            <span className="text-xl sm:text-3xl font-black text-amber-400 font-mono">
-              {stats?.avg_fuel_consumption_l_per_km !== undefined
-                ? Number(stats.avg_fuel_consumption_l_per_km).toFixed(3)
-                : (stats?.fuel_estimation?.liters_per_km !== undefined ? Number(stats.fuel_estimation.liters_per_km).toFixed(3) : '0.000')}
-            </span>
-            <span className="text-[10px] sm:text-xs text-amber-300/80 font-bold">L/km</span>
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 truncate" title={`${stats?.fuel_estimation?.liters_per_100km || 0} L/100km • ${stats?.fuel_estimation?.km_per_liter || 0} km/L`}>
-            {stats?.fuel_estimation?.liters_per_100km ? `${stats.fuel_estimation.liters_per_100km} L/100km` : t('liter_per_km', 'Liter per kilometer')}
-          </div>
-        </div>
-
-        {/* Pending Fuel Requests */}
-        <div
-          onClick={() => onNavigate('fuel')}
-          className="p-3 sm:p-4 bg-slate-900 border border-slate-800 hover:border-amber-500/50 cursor-pointer rounded-2xl sm:rounded-3xl relative overflow-hidden transition"
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-400">{t('pending_fuel_reqs', 'Pending Fuel Requests')}</span>
-            <Fuel className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className={`text-xl sm:text-3xl font-black mt-1.5 sm:mt-2 ${
-            stats?.pending_fuel_requests > 0 ? 'text-amber-400 animate-pulse' : 'text-slate-300'
-          }`}>
-            {stats?.pending_fuel_requests || 0}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-amber-400/80 mt-1 font-semibold truncate">{t('click_to_review', 'Click to review & approve →')}</div>
-        </div>
-
-        {/* Pending Payments Card */}
-        <div
-          onClick={() => onNavigate('payments')}
-          className="p-3 sm:p-4 bg-slate-900 border border-slate-800 hover:border-amber-500/50 cursor-pointer rounded-2xl sm:rounded-3xl relative overflow-hidden transition"
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-400">{t('pending_payments', 'Pending Payments')}</span>
-            <CreditCard className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className={`text-xl sm:text-3xl font-black mt-1.5 sm:mt-2 ${
-            stats?.pending_payments_count > 0 ? 'text-amber-400 animate-pulse' : 'text-slate-300'
-          }`}>
-            {stats?.pending_payments_count || 0}
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-amber-400/80 mt-1 font-semibold truncate">
-            {stats?.pending_payments_count > 0
-              ? `${formatCurrency(stats?.total_pending_revenue || 0)} awaiting →`
-              : 'All payments approved'}
+            {/* Bottom 4 Summary KPI Pills */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/60">
+                <div className="text-[10px] text-slate-400">{chartTimeframe === 'month' ? 'Mo. Revenue' : 'Today Revenue'}</div>
+                <div className="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400 truncate">
+                  {formatCurrency(chartTimeframe === 'month' ? stats?.monthly_revenue || 0 : stats?.revenue_today || 0)}
+                </div>
+              </div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/60">
+                <div className="text-[10px] text-slate-400">{chartTimeframe === 'month' ? 'Total Expenses' : 'Today Expenses'}</div>
+                <div className="text-xs sm:text-sm font-black text-rose-500 dark:text-red-400 truncate">
+                  {formatCurrency(chartTimeframe === 'month' ? stats?.monthly_total_expense || 0 : stats?.expenses_today || 0)}
+                </div>
+              </div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/60">
+                <div className="text-[10px] text-slate-400">{chartTimeframe === 'month' ? 'Mo. Net Profit' : 'Today Net Profit'}</div>
+                <div className="text-xs sm:text-sm font-black text-cyan-600 dark:text-cyan-400 truncate">
+                  {formatCurrency(chartTimeframe === 'month' ? stats?.monthly_net_profit || 0 : stats?.profit_today || 0)}
+                </div>
+              </div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/60">
+                <div className="text-[10px] text-slate-400">{t('net_margin')}</div>
+                <div className="text-xs sm:text-sm font-black text-amber-600 dark:text-amber-400">
+                  {(() => {
+                    const rev = chartTimeframe === 'month' ? stats?.monthly_revenue || 0 : stats?.revenue_today || 0;
+                    const prof = chartTimeframe === 'month' ? stats?.monthly_net_profit || 0 : stats?.profit_today || 0;
+                    if (rev <= 0) return '0%';
+                    return `${Math.round((prof / rev) * 100)}%`;
+                  })()}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -817,48 +1048,48 @@ export const AdminDashboard = ({ onNavigate }) => {
 
       {/* 2. TODAY'S FINANCIAL HIGHLIGHT BAR */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4">
-        <div className="p-4 sm:p-5 bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl">
+        <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-xs">
           <div className="flex justify-between items-center">
             <span className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">{t('todays_revenue', "Today's Revenue")}</span>
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">Realized (Paid)</span>
+            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-500/20">{t('realized_paid')}</span>
           </div>
-          <div className="text-xl sm:text-3xl font-black text-emerald-400 mt-1">
+          <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2 font-mono">
             {formatCurrency(stats?.revenue_today || 0)}
           </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> From {stats?.trips_today || 0} trips completed today
+          <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" /> From {stats?.trips_today || 0} trips completed today
           </div>
           {stats?.pending_revenue_today > 0 && (
-            <div className="text-[10px] text-amber-400 mt-1 font-semibold flex items-center gap-1">
-              <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+            <div className="text-xs text-amber-500 mt-1 font-semibold flex items-center gap-1">
+              <Clock className="w-3 h-3 text-amber-500 shrink-0" />
               <span>+{formatCurrency(stats.pending_revenue_today)} pending approval</span>
             </div>
           )}
         </div>
 
-        <div className="p-4 sm:p-5 bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl">
+        <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-xs">
           <div className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">{t('todays_expenses', "Today's Expenses")}</div>
-          <div className="text-xl sm:text-3xl font-black text-red-400 mt-1">
+          <div className="text-2xl sm:text-3xl font-extrabold text-rose-500 dark:text-red-400 mt-2 font-mono">
             {formatCurrency(stats?.expenses_today || 0)}
           </div>
-          <div className="text-[10px] sm:text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-            <ArrowDownRight className="w-3.5 h-3.5 text-red-400" /> Fuel advances & maintenance recorded
+          <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+            <ArrowDownRight className="w-3.5 h-3.5 text-rose-500" /> Fuel advances & maintenance recorded
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 bg-slate-900 border-2 border-emerald-500/40 rounded-2xl sm:rounded-3xl">
-          <div className="text-[11px] sm:text-xs font-bold text-emerald-400 uppercase tracking-wider">{t('todays_net_profit', "Today's Net Profit")}</div>
-          <div className="text-xl sm:text-3xl font-black text-white mt-1">
+        <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border-2 border-emerald-500/40 rounded-3xl shadow-xs">
+          <div className="text-[11px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{t('todays_net_profit', "Today's Net Profit")}</div>
+          <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">
             {formatCurrency(stats?.profit_today || 0)}
           </div>
-          <div className="text-[10px] sm:text-[11px] text-emerald-400/90 mt-1 font-semibold">
+          <div className="text-xs text-emerald-600 dark:text-emerald-400/90 mt-1 font-semibold">
             {t('pos_cashflow', 'Realized Revenue − Expenses (Cashflow)')}
           </div>
         </div>
       </div>
 
       {/* 3. MONTHLY FINANCIAL REPORT CARDS */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
             <h3 className="font-bold text-base text-white flex items-center gap-2">
@@ -878,7 +1109,7 @@ export const AdminDashboard = ({ onNavigate }) => {
           <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700">
             <div className="flex justify-between items-center">
               <span className="text-[11px] text-slate-400">{t('monthly_revenue', 'Monthly Revenue')}</span>
-              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">Realized</span>
+              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">{t('realized_badge')}</span>
             </div>
             <div className="text-lg font-black text-emerald-400 mt-1">
               {formatCurrency(stats?.monthly_revenue || 0)}
@@ -919,19 +1150,19 @@ export const AdminDashboard = ({ onNavigate }) => {
       </div>
 
       {/* 4. FUEL CONSUMPTION ESTIMATION (Per KM & Per Month) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-5 shadow-xl">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 sm:p-6 space-y-5 shadow-xs">
         {/* Header with Title and Mode Switcher */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-emerald-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5 shadow-md">
-              <Gauge className="w-5 h-5 text-amber-400" />
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 dark:bg-gradient-to-tr dark:from-amber-500/20 dark:to-emerald-500/20 text-amber-500 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+              <Gauge className="w-5 h-5" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-bold text-base sm:text-lg text-white">
+                <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white">
                   {t('fuel_estimation_title', 'Fuel Consumption & Efficiency Estimation')}
                 </h3>
-                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[10px] font-bold flex items-center gap-1">
+                <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200/60 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30 rounded-full text-[10px] font-bold flex items-center gap-1">
                   <Zap className="w-3 h-3" /> {t('live_auto_estimation', 'Live Auto-Estimation')}
                 </span>
               </div>
@@ -943,14 +1174,14 @@ export const AdminDashboard = ({ onNavigate }) => {
 
           {/* Mode Switcher + Diesel Price Adjuster */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex bg-slate-800/90 border border-slate-700 p-1 rounded-2xl text-xs shadow-inner">
+            <div className="flex bg-slate-100 dark:bg-slate-800/90 border border-slate-200/70 dark:border-slate-700 p-1 rounded-2xl text-xs shadow-inner">
               <button
                 type="button"
                 onClick={() => setFuelViewMode('per_km')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   fuelViewMode === 'per_km'
                     ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Zap className="w-3.5 h-3.5" /> {t('per_km', 'Per KM')}
@@ -961,7 +1192,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   fuelViewMode === 'per_month'
                     ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5" /> {t('per_month', 'Per Month')}
@@ -972,7 +1203,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   fuelViewMode === 'trucks'
                     ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Truck className="w-3.5 h-3.5" /> {t('by_truck', 'By Truck')} ({stats?.fuel_estimation?.trucks?.length || 0})
@@ -994,14 +1225,14 @@ export const AdminDashboard = ({ onNavigate }) => {
                 await loadFuelSupportData();
                 setFuelRecordsModalOpen(true);
               }}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
             >
-              <Edit className="w-3.5 h-3.5 text-amber-400" /> {t('edit_fuel_entries', 'Edit Fuel Entries')}
+              <Edit className="w-3.5 h-3.5 text-amber-500" /> {t('edit_fuel_entries', 'Edit Fuel Entries')}
             </button>
 
             {/* Diesel Price Adjuster */}
-            <form onSubmit={handlePriceUpdate} className="flex items-center bg-slate-800/90 border border-slate-700 px-2.5 py-1 rounded-2xl text-xs gap-1.5">
-              <span className="text-[11px] text-slate-400 font-medium">Diesel:</span>
+            <form onSubmit={handlePriceUpdate} className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 px-2.5 py-1 rounded-2xl text-xs gap-1.5">
+              <span className="text-[11px] text-slate-500 font-medium">{t('diesel_label')}</span>
               <input
                 type="number"
                 min="1"
@@ -1009,25 +1240,125 @@ export const AdminDashboard = ({ onNavigate }) => {
                 value={dieselPriceInput}
                 onChange={e => setDieselPriceInput(e.target.value)}
                 onBlur={handlePriceUpdate}
-                className="w-14 bg-slate-900 border border-slate-700 text-amber-400 font-mono font-bold text-center px-1 py-0.5 rounded-lg focus:outline-none focus:border-amber-500 text-xs"
-                title="Diesel Price per Liter in ETB"
+                className="w-14 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-amber-600 dark:text-amber-400 font-mono font-bold text-center px-1 py-0.5 rounded-lg focus:outline-none focus:border-amber-500 text-xs"
+                title={t('diesel_price_liter_title', 'Diesel Price per Liter in ETB')}
               />
-              <span className="text-[10px] text-slate-400 font-mono">ETB/L</span>
+              <span className="text-[10px] text-slate-400 font-mono">{t('unit_etb_per_l')}</span>
               <button
                 type="button"
                 onClick={handleSavePricePermanent}
                 disabled={refreshingFuel}
-                title="Save this diesel price permanently to system settings"
-                className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                title={t('save_diesel_price_title', 'Save this diesel price permanently to system settings')}
+                className="px-2 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-300 border border-amber-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
               >
-                <Save className="w-3 h-3" /> Save
+                <Save className="w-3 h-3" /> {t('save')}
               </button>
               {priceSavedBadge && (
-                <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-0.5 animate-pulse">
-                  <Check className="w-3 h-3" /> Saved!
+                <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-0.5 animate-pulse">
+                  <Check className="w-3 h-3" /> {t('saved_badge', 'Saved!')}
                 </span>
               )}
             </form>
+          </div>
+        </div>
+
+        {/* LIVE YARD RESERVE FUEL TANK RADIAL DONUT GAUGE (Matching 75% Successful Task in sample_ui_2.jpg) */}
+        <div className="p-5 sm:p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl mb-4 shadow-xs">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            {/* Left: Circular Donut Radial Gauge with Centered Metric */}
+            <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 flex items-center justify-center">
+              <Doughnut data={reserveTankGaugeData} options={reserveTankGaugeOptions} />
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight font-mono">
+                  {Math.round(((stats?.reserve_fuel_balance_liters ?? 5000) / (stats?.reserve_fuel_capacity_liters || 10000)) * 100)}%
+                </span>
+                <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-0.5">
+                  {(stats?.reserve_fuel_balance_liters ?? 5000) <= 0
+                    ? 'Tank Empty'
+                    : (stats?.reserve_fuel_balance_liters ?? 5000) <= (stats?.reserve_fuel_low_threshold ?? 1500)
+                    ? 'Low Fuel'
+                    : 'Yard Tank Stock'}
+                </span>
+              </div>
+            </div>
+
+            {/* Middle: Details & Bullet Indicators */}
+            <div className="flex-1 space-y-3 w-full">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                    <Gauge className="w-5 h-5 text-indigo-500" />
+                    {t('reserve_inventory_mgmt_title', 'Company Yard Reserve Fuel Tank')}
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {t('reserve_inventory_mgmt_sub', 'Real-time yard stock tracking, refill procurement, and truck pump deductions')}
+                  </p>
+                </div>
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                    (stats?.reserve_fuel_balance_liters ?? 5000) <= 0
+                      ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/40 animate-pulse'
+                      : (stats?.reserve_fuel_balance_liters ?? 5000) <= (stats?.reserve_fuel_low_threshold ?? 1500)
+                      ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/40 animate-pulse'
+                      : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/40'
+                  }`}
+                >
+                  {(stats?.reserve_fuel_balance_liters ?? 5000) <= 0
+                    ? t('reserve_stock_empty', 'Yard Tank Empty')
+                    : (stats?.reserve_fuel_balance_liters ?? 5000) <= (stats?.reserve_fuel_low_threshold ?? 1500)
+                    ? t('reserve_stock_low', 'Low Stock Warning')
+                    : t('reserve_stock_healthy', 'In Stock / Healthy')}
+                </span>
+              </div>
+
+              {/* Legend with circular dots matching sample_ui_2.jpg */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block" />
+                    <span>{t('reserve_calibrate_balance', 'Current Fuel Balance')}</span>
+                  </div>
+                  <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 font-mono mt-1">
+                    {formatNumber(stats?.reserve_fuel_balance_liters ?? 5000)} <span className="text-xs text-slate-400 font-semibold">L</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600 inline-block" />
+                    <span>{t('reserve_calibrate_capacity', 'Total Capacity')}</span>
+                  </div>
+                  <div className="text-xl font-black text-slate-800 dark:text-slate-200 font-mono mt-1">
+                    {formatNumber(stats?.reserve_fuel_capacity_liters ?? 10000)} <span className="text-xs text-slate-400 font-semibold">L</span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
+                    <span>{t('reserve_calibrate_threshold', 'Low Stock Threshold')}</span>
+                  </div>
+                  <div className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
+                    {formatNumber(stats?.reserve_fuel_low_threshold ?? 1500)} <span className="text-xs text-slate-400 font-semibold">L</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action row */}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-slate-400">
+                  Remaining available: <strong className="text-slate-700 dark:text-slate-300 font-mono">{formatNumber(stats?.reserve_fuel_balance_liters ?? 5000)} / {formatNumber(stats?.reserve_fuel_capacity_liters ?? 10000)} L</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('fuel')}
+                  className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/20 dark:hover:bg-indigo-500/30 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                >
+                  <span>Manage Reserve Tank</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1038,9 +1369,9 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 1: Average Fuel Consumption (Liter per Kilometer) */}
               <div className="p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-amber-300">Avg Fuel Consumption</span>
+                  <span className="text-xs font-semibold text-amber-300">{t('avg_fuel_consumption')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                    L / km
+                    {t('unit_l_slash_km')}
                   </span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-1.5">
@@ -1049,7 +1380,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                       ? Number(stats.avg_fuel_consumption_l_per_km).toFixed(3)
                       : (stats?.fuel_estimation?.liters_per_km !== undefined ? Number(stats.fuel_estimation.liters_per_km).toFixed(3) : '0.000')}
                   </span>
-                  <span className="text-xs text-slate-400 font-bold">L / km</span>
+                  <span className="text-xs text-slate-400 font-bold">{t('unit_l_slash_km')}</span>
                 </div>
                 <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
                   <span className="text-slate-400 font-mono">
@@ -1064,7 +1395,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 2: Average Trip Distance */}
               <div className="p-4 bg-slate-800/80 border border-cyan-500/30 rounded-2xl relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-cyan-300">Avg Trip Distance</span>
+                  <span className="text-xs font-semibold text-cyan-300">{t('avg_trip_distance')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
                     KM / Trip
                   </span>
@@ -1088,7 +1419,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 3: Fuel Cost Per KM */}
               <div className="p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-slate-400">Fuel Cost Per KM</span>
+                  <span className="text-xs font-semibold text-slate-400">{t('fuel_cost_per_km')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     ETB / KM
                   </span>
@@ -1100,7 +1431,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <span className="text-xs text-slate-400 font-bold">/ km</span>
                 </div>
                 <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Total Fuel:</span>
+                  <span className="text-slate-400">{t('total_fuel_label')}</span>
                   <span className="text-slate-200 font-bold font-mono">
                     {formatCurrency(stats?.fuel_estimation?.total_fuel_cost || 0)}
                   </span>
@@ -1110,7 +1441,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 4: Total Verified Odometer Distance */}
               <div className="p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-slate-400">Odometer Distance</span>
+                  <span className="text-xs font-semibold text-slate-400">{t('odometer_distance_label')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
                     Verified Logs
                   </span>
@@ -1130,7 +1461,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 5: Total Fuel Volume */}
               <div className="p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-slate-400">Fuel Allocated</span>
+                  <span className="text-xs font-semibold text-slate-400">{t('fuel_allocated_label')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
                     Fuel Requests
                   </span>
@@ -1139,7 +1470,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <span className="text-2xl sm:text-3xl font-black text-purple-400 font-mono">
                     {formatNumber(stats?.fuel_estimation?.total_fuel_liters || 0)}
                   </span>
-                  <span className="text-xs text-slate-400 font-bold">Liters</span>
+                  <span className="text-xs text-slate-400 font-bold">{t('liters_unit')}</span>
                 </div>
                 <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
                   <span className="text-slate-400">Today: {formatNumber(stats?.fuel_estimation?.today_fuel_liters || 0)} L</span>
@@ -1153,7 +1484,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               <div className="flex items-center gap-2.5 text-slate-300">
                 <Info className="w-4 h-4 text-amber-400 shrink-0" />
                 <span>
-                  <strong>Fleet Metrics Formula:</strong> Avg Fuel Consumption = Fuel Requests ({stats?.fuel_estimation?.total_fuel_liters || 0} L) ÷ Odometer Mileage ({stats?.fuel_estimation?.total_distance_km || 0} KM) = <span className="text-amber-400 font-mono font-bold">{Number(stats?.avg_fuel_consumption_l_per_km || stats?.fuel_estimation?.liters_per_km || 0).toFixed(3)} L/km</span> ({stats?.fuel_estimation?.liters_per_100km || 0} L/100km) at <span className="text-emerald-400 font-mono font-bold">{formatCurrency(stats?.fuel_estimation?.cost_per_km || 0)}/km</span> • Avg Trip Distance = Total Distance ÷ Trips ({stats?.total_completed_trips || stats?.trips_month || 0}) = <span className="text-cyan-400 font-mono font-bold">{formatNumber(stats?.avg_trip_distance_km ?? stats?.fuel_estimation?.avg_trip_distance_km ?? 0)} km/trip</span>.
+                  <strong>{t('fleet_metrics_formula')}</strong> Avg Fuel Consumption = Fuel Requests ({stats?.fuel_estimation?.total_fuel_liters || 0} L) ÷ Odometer Mileage ({stats?.fuel_estimation?.total_distance_km || 0} KM) = <span className="text-amber-400 font-mono font-bold">{Number(stats?.avg_fuel_consumption_l_per_km || stats?.fuel_estimation?.liters_per_km || 0).toFixed(3)} L/km</span> ({stats?.fuel_estimation?.liters_per_100km || 0} L/100km) at <span className="text-emerald-400 font-mono font-bold">{formatCurrency(stats?.fuel_estimation?.cost_per_km || 0)}/km</span> • Avg Trip Distance = Total Distance ÷ Trips ({stats?.total_completed_trips || stats?.trips_month || 0}) = <span className="text-cyan-400 font-mono font-bold">{formatNumber(stats?.avg_trip_distance_km ?? stats?.fuel_estimation?.avg_trip_distance_km ?? 0)} km/trip</span>.
                 </span>
               </div>
               <button
@@ -1174,7 +1505,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 1: Month Fuel Liters */}
               <div className="p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-slate-400">Month Fuel Consumption</span>
+                  <span className="text-xs font-semibold text-slate-400">{t('month_fuel_consumption')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
                     MTD Volume
                   </span>
@@ -1183,10 +1514,10 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <span className="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
                     {formatNumber(stats?.fuel_estimation?.month_fuel_liters || 0)}
                   </span>
-                  <span className="text-xs text-slate-400 font-bold">Liters</span>
+                  <span className="text-xs text-slate-400 font-bold">{t('liters_unit')}</span>
                 </div>
                 <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Month Fuel Spend:</span>
+                  <span className="text-slate-400">{t('month_fuel_spend')}</span>
                   <span className="text-slate-200 font-bold font-mono">
                     {formatCurrency(stats?.fuel_estimation?.month_fuel_cost || 0)}
                   </span>
@@ -1196,7 +1527,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 2: Month Odometer Distance */}
               <div className="p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-slate-400">Month Odometer Distance</span>
+                  <span className="text-xs font-semibold text-slate-400">{t('month_odometer_distance')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
                     MTD Mileage
                   </span>
@@ -1208,7 +1539,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <span className="text-xs text-slate-400 font-bold">KM</span>
                 </div>
                 <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Month Economy:</span>
+                  <span className="text-slate-400">{t('month_economy')}</span>
                   <span className="text-emerald-400 font-bold font-mono">
                     {stats?.fuel_estimation?.month_liters_per_100km || 0} L/100km ({formatCurrency(stats?.fuel_estimation?.month_cost_per_km || 0)}/km)
                   </span>
@@ -1218,7 +1549,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 3: Projected Month Fuel (Forecast) */}
               <div className="p-4 bg-slate-800/80 border-2 border-amber-500/40 rounded-2xl relative overflow-hidden shadow-sm">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-amber-300">Projected Month Fuel</span>
+                  <span className="text-xs font-bold text-amber-300">{t('projected_month_fuel')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                     Month Forecast
                   </span>
@@ -1227,10 +1558,10 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <span className="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
                     ~{formatNumber(stats?.fuel_estimation?.projected_month_liters || 0)}
                   </span>
-                  <span className="text-xs text-slate-400 font-bold">Liters</span>
+                  <span className="text-xs text-slate-400 font-bold">{t('liters_unit')}</span>
                 </div>
                 <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Est. Total Cost:</span>
+                  <span className="text-slate-400">{t('est_total_cost')}</span>
                   <span className="text-amber-400 font-bold font-mono">
                     ~{formatCurrency(stats?.fuel_estimation?.projected_month_fuel_cost || 0)}
                   </span>
@@ -1240,7 +1571,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Card 4: Projected Month Distance */}
               <div className="p-4 bg-slate-800/80 border-2 border-emerald-500/40 rounded-2xl relative overflow-hidden shadow-sm">
                 <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-emerald-300">Projected Month Distance</span>
+                  <span className="text-xs font-bold text-emerald-300">{t('projected_month_distance')}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                     Month Forecast
                   </span>
@@ -1252,7 +1583,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <span className="text-xs text-slate-400 font-bold">KM</span>
                 </div>
                 <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400">Run-rate basis:</span>
+                  <span className="text-slate-400">{t('run_rate_basis')}</span>
                   <span className="text-emerald-300 font-semibold">
                     Extrapolated for full month
                   </span>
@@ -1267,19 +1598,19 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <h4 className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-amber-400" /> Month-by-Month Consumption & Odometer Mileage
                   </h4>
-                  <span className="text-[10px] text-slate-500 font-mono">Historical tracking</span>
+                  <span className="text-[10px] text-slate-500 font-mono">{t('historical_tracking')}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-800/60 text-slate-400 text-[10px] uppercase tracking-wider">
                       <tr>
-                        <th className="py-2 px-3 rounded-l-lg">Accounting Month</th>
-                        <th className="py-2 px-3">Odometer Distance</th>
-                        <th className="py-2 px-3">Fuel Requests Cost</th>
-                        <th className="py-2 px-3">Fuel Volume</th>
-                        <th className="py-2 px-3">Consumption Rate</th>
-                        <th className="py-2 px-3">Cost / KM</th>
-                        <th className="py-2 px-3 rounded-r-lg">Fuel Economy</th>
+                        <th className="py-2 px-3 rounded-l-lg">{t('accounting_month')}</th>
+                        <th className="py-2 px-3">{t('odometer_distance_label')}</th>
+                        <th className="py-2 px-3">{t('fuel_requests_cost_col')}</th>
+                        <th className="py-2 px-3">{t('fuel_volume_col')}</th>
+                        <th className="py-2 px-3">{t('consumption_rate')}</th>
+                        <th className="py-2 px-3">{t('cost_per_km_header')}</th>
+                        <th className="py-2 px-3 rounded-r-lg">{t('fuel_economy_header')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
@@ -1310,14 +1641,14 @@ export const AdminDashboard = ({ onNavigate }) => {
                 <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
                   <tr>
                     <th className="py-2.5 px-3 rounded-l-xl">Truck Plate & Model</th>
-                    <th className="py-2.5 px-3">Assigned Driver</th>
-                    <th className="py-2.5 px-3">Odometer (Month / Total)</th>
-                    <th className="py-2.5 px-3">Fuel Requests (Month / Total)</th>
-                    <th className="py-2.5 px-3">Consumption Rate</th>
-                    <th className="py-2.5 px-3">Cost / KM</th>
-                    <th className="py-2.5 px-3">Economy</th>
-                    <th className="py-2.5 px-3">Efficiency Status</th>
-                    <th className="py-2.5 px-3 rounded-r-xl text-right">Actions</th>
+                    <th className="py-2.5 px-3">{t('assigned_driver_header')}</th>
+                    <th className="py-2.5 px-3">{t('odometer_month_total')}</th>
+                    <th className="py-2.5 px-3">{t('fuel_requests_month_total')}</th>
+                    <th className="py-2.5 px-3">{t('consumption_rate')}</th>
+                    <th className="py-2.5 px-3">{t('cost_per_km_header')}</th>
+                    <th className="py-2.5 px-3">{t('fuel_economy_header')}</th>
+                    <th className="py-2.5 px-3">{t('efficiency_status_header')}</th>
+                    <th className="py-2.5 px-3 rounded-r-xl text-right">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
@@ -1382,9 +1713,9 @@ export const AdminDashboard = ({ onNavigate }) => {
                               type="button"
                               onClick={() => openNewFuelModal(t)}
                               className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-[11px] font-bold inline-flex items-center gap-1 transition cursor-pointer"
-                              title="Edit or log fuel advance for this truck"
+                              title={t('log_fuel_advance_title', 'Edit or log fuel advance for this truck')}
                             >
-                              <Edit className="w-3 h-3" /> Edit Fuel
+                              <Edit className="w-3 h-3" /> {t('edit_fuel_btn', 'Edit Fuel')}
                             </button>
                           </td>
                         </tr>
@@ -1399,48 +1730,48 @@ export const AdminDashboard = ({ onNavigate }) => {
       </div>
 
       {/* 5. ADMIN QUICK ACTIONS (Requirement 18) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5">
-        <h3 className="font-bold text-sm text-slate-200 mb-3">Admin Quick Actions</h3>
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs">
+        <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200 mb-3">{t('admin_quick_actions')}</h3>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => onNavigate('trucks')}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-1.5 touch-btn"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 touch-btn cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-amber-400" /> Add Truck
+            <Plus className="w-4 h-4 text-amber-500" /> Add Truck
           </button>
           <button
             onClick={() => onNavigate('drivers')}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-1.5 touch-btn"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 touch-btn cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-amber-400" /> Add Driver
+            <Plus className="w-4 h-4 text-amber-500" /> Add Driver
           </button>
           <button
             onClick={() => onNavigate('sites')}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-1.5 touch-btn"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 touch-btn cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-amber-400" /> Add Loading / Dumping Site
+            <Plus className="w-4 h-4 text-amber-500" /> Add Loading / Dumping Site
           </button>
           <button
             onClick={() => onNavigate('materials')}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-1.5 touch-btn"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 touch-btn cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-amber-400" /> Add Material
+            <Plus className="w-4 h-4 text-amber-500" /> Add Material
           </button>
           <button
             onClick={() => onNavigate('routes')}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-1.5 touch-btn"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 touch-btn cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-amber-400" /> Set Route Price
+            <Plus className="w-4 h-4 text-amber-500" /> Set Route Price
           </button>
           <button
             onClick={() => onNavigate('fuel')}
-            className="px-3.5 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 touch-btn"
+            className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30 border border-emerald-200/80 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300 rounded-2xl text-xs font-bold flex items-center gap-1.5 touch-btn cursor-pointer"
           >
             <Fuel className="w-4 h-4" /> View Fuel Requests ({stats?.pending_fuel_requests || 0})
           </button>
           <button
             onClick={() => onNavigate('reports')}
-            className="px-3.5 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 rounded-xl text-xs font-bold flex items-center gap-1.5 touch-btn"
+            className="px-3.5 py-2 bg-purple-50 hover:bg-purple-100/80 dark:bg-purple-500/20 dark:hover:bg-purple-500/30 border border-purple-200/80 dark:border-purple-500/40 text-purple-700 dark:text-purple-300 rounded-2xl text-xs font-bold flex items-center gap-1.5 touch-btn cursor-pointer"
           >
             <BarChart3 className="w-4 h-4" /> Generate Reports
           </button>
@@ -1450,13 +1781,13 @@ export const AdminDashboard = ({ onNavigate }) => {
       {/* 5. VISUAL CHARTS & INTERACTIVE DATA GRAPHS */}
       <div className="space-y-4">
         {/* Graphs Header & Category Filter Bar */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <BarChart3 className="w-5 h-5 text-amber-400" />
+              <BarChart3 className="w-5 h-5 text-amber-500" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white flex items-center gap-2">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 {t('fleet_graphs_title', 'Fleet Analytics & Interactive Graphs')}
               </h3>
               <p className="text-xs text-slate-400">
@@ -1466,10 +1797,9 @@ export const AdminDashboard = ({ onNavigate }) => {
           </div>
 
           {/* Filter Pills */}
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-800/90 p-1 rounded-2xl border border-slate-700">
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200/70 dark:border-slate-700">
             {[
               { id: 'all', label: t('all_graphs', 'All Analytics'), icon: Layers },
-              { id: 'financial', label: t('financial_flow', 'Financial Flow'), icon: TrendingUp },
               { id: 'materials', label: t('materials', 'Material Share'), icon: PieChart },
               { id: 'trucks', label: t('top_trucks', 'Truck Rankings'), icon: Truck },
               { id: 'trends', label: t('hauling_trends', 'Hauling Trends'), icon: Activity },
@@ -1482,7 +1812,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer touch-btn ${
                   chartCategory === cat.id
                     ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/80 dark:hover:bg-slate-700/50'
                 }`}
               >
                 <cat.icon className="w-3.5 h-3.5" />
@@ -1494,85 +1824,15 @@ export const AdminDashboard = ({ onNavigate }) => {
 
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Chart 1: Financial Flow & Profitability Bar Chart */}
-          {(chartCategory === 'all' || chartCategory === 'financial') && (
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-emerald-400" />
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-100">{t('financial_flow_title', 'Revenue vs Expenses & Net Profit')}</h3>
-                    <p className="text-[11px] text-slate-400">{t('financial_flow_sub', 'Cashflow breakdown and operational margins')}</p>
-                  </div>
-                </div>
-                <div className="flex bg-slate-800/90 border border-slate-700 p-0.5 rounded-xl text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setChartTimeframe('month')}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                      chartTimeframe === 'month' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {t('month', 'Month')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setChartTimeframe('today')}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                      chartTimeframe === 'today' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {t('today', 'Today')}
-                  </button>
-                </div>
-              </div>
-
-              <div className="h-64 sm:h-72 w-full relative">
-                <Bar data={financialChartData} options={currencyTooltipOptions} />
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80">
-                <div className="p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                  <div className="text-[10px] text-slate-400">{chartTimeframe === 'month' ? 'Mo. Revenue' : 'Today Revenue'}</div>
-                  <div className="text-xs sm:text-sm font-black text-emerald-400 truncate">
-                    {formatCurrency(chartTimeframe === 'month' ? stats?.monthly_revenue || 0 : stats?.revenue_today || 0)}
-                  </div>
-                </div>
-                <div className="p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                  <div className="text-[10px] text-slate-400">{chartTimeframe === 'month' ? 'Total Expenses' : 'Today Expenses'}</div>
-                  <div className="text-xs sm:text-sm font-black text-red-400 truncate">
-                    {formatCurrency(chartTimeframe === 'month' ? stats?.monthly_total_expense || 0 : stats?.expenses_today || 0)}
-                  </div>
-                </div>
-                <div className="p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                  <div className="text-[10px] text-slate-400">{chartTimeframe === 'month' ? 'Mo. Net Profit' : 'Today Net Profit'}</div>
-                  <div className="text-xs sm:text-sm font-black text-cyan-400 truncate">
-                    {formatCurrency(chartTimeframe === 'month' ? stats?.monthly_net_profit || 0 : stats?.profit_today || 0)}
-                  </div>
-                </div>
-                <div className="p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/60">
-                  <div className="text-[10px] text-slate-400">Net Margin</div>
-                  <div className="text-xs sm:text-sm font-black text-amber-400">
-                    {(() => {
-                      const rev = chartTimeframe === 'month' ? stats?.monthly_revenue || 0 : stats?.revenue_today || 0;
-                      const prof = chartTimeframe === 'month' ? stats?.monthly_net_profit || 0 : stats?.profit_today || 0;
-                      if (rev <= 0) return '0%';
-                      return `${Math.round((prof / rev) * 100)}%`;
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Chart 2: Revenue by Cargo Material Doughnut Chart */}
           {(chartCategory === 'all' || chartCategory === 'materials') && (
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <PieChart className="w-5 h-5 text-amber-400" />
+                  <PieChart className="w-5 h-5 text-amber-500" />
                   <div>
-                    <h3 className="font-bold text-sm text-slate-100">{t('material_revenue_share', 'Revenue by Hauled Material')}</h3>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">{t('material_revenue_share', 'Revenue by Hauled Material')}</h3>
                     <p className="text-[11px] text-slate-400">{t('material_share_sub', 'Distribution of income by cargo type')}</p>
                   </div>
                 </div>
@@ -1586,7 +1846,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                   {Object.keys(stats?.material_revenue || {}).length > 0 ? (
                     <Doughnut data={materialChartData} options={doughnutOptions} />
                   ) : (
-                    <div className="text-xs text-slate-400">No material data recorded</div>
+                    <div className="text-xs text-slate-400">{t('no_material_data')}</div>
                   )}
                 </div>
 
@@ -1596,14 +1856,14 @@ export const AdminDashboard = ({ onNavigate }) => {
                       const total = stats.monthly_revenue || 1;
                       const pct = Math.min(100, Math.round((rev / total) * 100));
                       return (
-                        <div key={mat} className="p-2.5 bg-slate-800/60 rounded-xl border border-slate-700/60 space-y-1">
+                        <div key={mat} className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/60 space-y-1">
                           <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-200">{mat}</span>
-                            <span className="font-black text-emerald-400 font-mono">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{mat}</span>
+                            <span className="font-black text-emerald-600 dark:text-emerald-400 font-mono">
                               {formatCurrency(rev)} <span className="text-[10px] text-slate-400 font-normal">({pct}%)</span>
                             </span>
                           </div>
-                          <div className="w-full bg-slate-700/60 h-2 rounded-full overflow-hidden">
+                          <div className="w-full bg-slate-200 dark:bg-slate-700/60 h-2 rounded-full overflow-hidden">
                             <div
                               className="bg-gradient-to-r from-amber-500 to-emerald-500 h-full rounded-full transition-all duration-500"
                               style={{ width: `${pct}%` }}
@@ -1613,7 +1873,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                       );
                     })
                   ) : (
-                    <div className="text-center py-6 text-slate-400 text-xs">No material data recorded yet</div>
+                    <div className="text-center py-6 text-slate-400 text-xs">{t('no_material_data_yet')}</div>
                   )}
                 </div>
               </div>
@@ -1622,18 +1882,18 @@ export const AdminDashboard = ({ onNavigate }) => {
 
           {/* Chart 3: Top Performing Trucks Grouped Bar Chart */}
           {(chartCategory === 'all' || chartCategory === 'trucks') && (
-            <div className={`bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 ${
+            <div className={`bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 space-y-4 shadow-xs ${
               chartCategory === 'trucks' ? 'lg:col-span-2' : ''
             }`}>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-amber-400" />
+                  <Truck className="w-5 h-5 text-amber-500" />
                   <div>
-                    <h3 className="font-bold text-sm text-slate-100">{t('top_trucks_perf', 'Top Performing Trucks (Revenue vs Profit)')}</h3>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">{t('top_trucks_perf', 'Top Performing Trucks (Revenue vs Profit)')}</h3>
                     <p className="text-[11px] text-slate-400">{t('top_trucks_perf_sub', 'Comparative profitability across active fleet vehicles')}</p>
                   </div>
                 </div>
-                <span className="text-[11px] text-slate-400">Ranked by Revenue</span>
+                <span className="text-[11px] text-slate-400">{t('ranked_by_revenue')}</span>
               </div>
 
               {stats?.top_trucks?.length > 0 ? (
@@ -1642,25 +1902,25 @@ export const AdminDashboard = ({ onNavigate }) => {
                     <Bar data={topTrucksChartData} options={currencyTooltipOptions} />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-2 border-t border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
                     {stats.top_trucks.map((trk, idx) => (
                       <div
                         key={trk.truck_id || idx}
-                        className="p-3 bg-slate-800/70 border border-slate-700/80 rounded-2xl flex items-center justify-between text-xs"
+                        className="p-3 bg-slate-50 dark:bg-slate-800/70 border border-slate-100 dark:border-slate-700/80 rounded-2xl flex items-center justify-between text-xs"
                       >
                         <div className="flex items-center space-x-2.5">
-                          <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center text-xs shrink-0">
+                          <span className="w-6 h-6 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center text-xs shrink-0">
                             #{idx + 1}
                           </span>
                           <div>
-                            <div className="font-bold text-slate-100">{trk.truck_plate || 'Truck'}</div>
+                            <div className="font-bold text-slate-800 dark:text-slate-100">{trk.truck_plate || 'Truck'}</div>
                             <div className="text-[10px] text-slate-400">{trk.trips} Hauling Trips</div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-black text-emerald-400">{formatCurrency(trk.revenue)}</div>
+                          <div className="font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(trk.revenue)}</div>
                           <div className="text-[10px] text-slate-400">
-                            Profit: <strong className="text-cyan-300">{formatCurrency(trk.profit)}</strong>
+                            Profit: <strong className="text-cyan-600 dark:text-cyan-300">{formatCurrency(trk.profit)}</strong>
                           </div>
                         </div>
                       </div>
@@ -1668,30 +1928,30 @@ export const AdminDashboard = ({ onNavigate }) => {
                   </div>
                 </>
               ) : (
-                <div className="text-center py-8 text-slate-400 text-xs">No truck performance data available</div>
+                <div className="text-center py-8 text-slate-400 text-xs">{t('no_truck_perf_data')}</div>
               )}
             </div>
           )}
 
           {/* Chart 4: Hauling Volume & Revenue Trend Line Chart */}
           {(chartCategory === 'all' || chartCategory === 'trends') && tripTrendsChartData && (
-            <div className={`bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 ${
+            <div className={`bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 space-y-4 shadow-xs ${
               chartCategory === 'trends' ? 'lg:col-span-2' : ''
             }`}>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-emerald-400" />
+                  <Activity className="w-5 h-5 text-emerald-500" />
                   <div>
-                    <h3 className="font-bold text-sm text-slate-100">{t('hauling_trends_title', 'Hauling Operations & Revenue Trend')}</h3>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">{t('hauling_trends_title', 'Hauling Operations & Revenue Trend')}</h3>
                     <p className="text-[11px] text-slate-400">{t('hauling_trends_sub', 'Daily cargo tonnage vs generated revenue over recent dispatches')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs">
-                  <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
-                    <span className="w-2.5 h-1 bg-emerald-400 rounded-full inline-block" /> Revenue
+                  <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+                    <span className="w-2.5 h-1 bg-emerald-500 rounded-full inline-block" /> Revenue
                   </span>
-                  <span className="inline-flex items-center gap-1.5 text-amber-400 font-semibold">
-                    <span className="w-2.5 h-2 bg-amber-400 rounded inline-block" /> Volume (Tons)
+                  <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
+                    <span className="w-2.5 h-2 bg-amber-500 rounded inline-block" /> Volume (Tons)
                   </span>
                 </div>
               </div>
@@ -1704,21 +1964,21 @@ export const AdminDashboard = ({ onNavigate }) => {
 
           {/* Chart 5: Fuel Efficiency Comparison Benchmark Chart */}
           {(chartCategory === 'all' || chartCategory === 'fuel') && truckFuelChartData && (
-            <div className={`bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 ${
+            <div className={`bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 space-y-4 shadow-xs ${
               chartCategory === 'fuel' ? 'lg:col-span-2' : ''
             }`}>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <Fuel className="w-5 h-5 text-amber-400" />
+                  <Fuel className="w-5 h-5 text-amber-500" />
                   <div>
-                    <h3 className="font-bold text-sm text-slate-100">{t('fuel_efficiency_comparison', 'Truck Fuel Consumption Benchmark (L/100km)')}</h3>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">{t('fuel_efficiency_comparison', 'Truck Fuel Consumption Benchmark (L/100km)')}</h3>
                     <p className="text-[11px] text-slate-400">{t('fuel_efficiency_sub', 'Liters consumed per 100km by vehicle (<40 Green, 40-50 Amber, >50 Red)')}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] font-bold">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Good ≤40</span>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">Moderate 40-50</span>
-                  <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">High &gt;50</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/60 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30">Good ≤40</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200/60 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30">{t('moderate_status')}</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200/60 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30">High &gt;50</span>
                 </div>
               </div>
 
@@ -1731,15 +1991,15 @@ export const AdminDashboard = ({ onNavigate }) => {
       </div>
 
       {/* 6. RECENT TRIPS TABLE (Requirement 47) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h3 className="font-bold text-sm text-slate-100">{t('recent_hauling_trips', 'Recent Hauling Trips Feed')}</h3>
+            <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">{t('recent_hauling_trips', 'Recent Hauling Trips Feed')}</h3>
             <p className="text-xs text-slate-400">{t('recent_trips_sub', 'Live trip submissions across all trucks and drivers')}</p>
           </div>
           <button
             onClick={() => onNavigate('trips')}
-            className="text-xs font-bold text-amber-400 hover:underline cursor-pointer"
+            className="text-xs font-bold text-amber-500 hover:underline cursor-pointer"
           >
             {t('view_all_trips', 'Manage All Trips →')}
           </button>
@@ -1747,34 +2007,105 @@ export const AdminDashboard = ({ onNavigate }) => {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
+            <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-400 dark:text-slate-400 uppercase tracking-wider text-[10px]">
               <tr>
-                <th className="py-2.5 px-3 rounded-l-xl">Trip #</th>
-                <th className="py-2.5 px-3">Date</th>
+                <th className="py-2.5 px-3 rounded-l-2xl">Trip #</th>
+                <th className="py-2.5 px-3">{t('date')}</th>
                 <th className="py-2.5 px-3">Truck & Driver</th>
-                <th className="py-2.5 px-3">Route</th>
-                <th className="py-2.5 px-3">Material</th>
-                <th className="py-2.5 px-3">Quantity</th>
-                <th className="py-2.5 px-3">Revenue</th>
-                <th className="py-2.5 px-3 rounded-r-xl">Status</th>
+                <th className="py-2.5 px-3">{t('route_col')}</th>
+                <th className="py-2.5 px-3">{t('material_col')}</th>
+                <th className="py-2.5 px-3">{t('quantity_col')}</th>
+                <th className="py-2.5 px-3">{t('driver_rev_kpi')}</th>
+                <th className="py-2.5 px-3 rounded-r-2xl">{t('odo_col_status')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {recentTrips.map(t => (
-                <tr key={t.id} className="hover:bg-slate-800/50 transition">
-                  <td className="py-3 px-3 font-mono font-bold text-amber-400">{t.trip_number}</td>
+                <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition">
+                  <td className="py-3 px-3 font-mono font-bold text-amber-500">{t.trip_number}</td>
                   <td className="py-3 px-3 text-slate-400">{formatDate(t.date)}</td>
                   <td className="py-3 px-3">
-                    <div className="font-bold text-slate-200">{t.truck_plate}</div>
+                    <div className="font-bold text-slate-800 dark:text-slate-200">{t.truck_plate}</div>
                     <div className="text-[11px] text-slate-400">{t.driver_name}</div>
                   </td>
                   <td className="py-3 px-3">
-                    <div className="text-slate-300">{t.loading_site_name}</div>
+                    <div className="text-slate-700 dark:text-slate-300 font-semibold">{t.loading_site_name}</div>
+                    {(t.intermediate_site_name || t.transition_point_name) && (
+                      <div className="text-[10px] text-purple-300 flex items-center gap-1 my-0.5 font-medium">
+                        <MapPin className="w-3 h-3 text-purple-400 inline shrink-0" />
+                        <span>Transit: {t.intermediate_site_name || t.transition_point_name}</span>
+                        {t.is_split_drop && (
+                          <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
+                            Split Drop
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="text-[10px] text-slate-500">→ {t.dumping_site_name}</div>
                   </td>
                   <td className="py-3 px-3 font-semibold text-slate-200">{t.material_name}</td>
-                  <td className="py-3 px-3 text-slate-300 font-semibold">{t.quantity} {t.unit}</td>
-                  <td className="py-3 px-3 font-black text-emerald-400">{formatCurrency(t.total_revenue)}</td>
+                  <td className="py-3 px-3 text-slate-300 font-semibold">
+                    {t.is_split_drop ? (
+                      <div className="space-y-0.5">
+                        <div className="text-white font-bold">
+                          {t.quantity} {t.unit || 't'}
+                          {t.quantity_kg > 0 && t.unit !== 'ton' && (
+                            <span className="text-[10px] text-slate-400 font-normal ml-1">
+                              ({formatNumber(t.quantity_kg / 1000, 2)} t)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-purple-300 font-mono">
+                          📍 {t.transit_quantity} {t.transit_unit || 't'}
+                        </div>
+                        <div className="text-[10px] text-cyan-300 font-mono">
+                          🏁 {t.destination_quantity} {t.destination_unit || 't'}
+                        </div>
+                      </div>
+                    ) : (
+                      <span>
+                        {t.quantity} {t.unit || 't'}
+                        {t.quantity_kg > 0 && t.unit !== 'ton' && (
+                          <span className="text-[10px] text-slate-400 font-normal ml-1">
+                            ({formatNumber(t.quantity_kg / 1000, 2)} t)
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-3">
+                    {(() => {
+                      const tVal = t.transit_pricing_method === 'lump_sum'
+                        ? (t.transit_lump_sum || t.transit_revenue || 0)
+                        : (parseFloat(t.transit_quantity) || 0) * (parseFloat(t.transit_unit_price || t.transit_unit_price_split) || 0);
+                      const dVal = t.destination_pricing_method === 'lump_sum'
+                        ? (t.destination_lump_sum || t.destination_revenue || 0)
+                        : (parseFloat(t.destination_quantity) || 0) * (parseFloat(t.destination_unit_price || t.destination_unit_price_split) || 0);
+                      const calculatedNet = t.is_split_drop
+                        ? ((tVal + dVal) - (t.total_additional_fees || 0))
+                        : t.total_revenue;
+                      const displayTotal = t.is_split_drop
+                        ? calculatedNet
+                        : t.total_revenue;
+
+                      return (
+                        <>
+                          <div className="font-black text-emerald-400">{formatCurrency(displayTotal)}</div>
+                          {t.is_split_drop && (
+                            <div className="text-[9px] text-slate-400 font-mono mt-0.5">
+                              <div className="text-purple-300">T: {formatCurrency(tVal)}</div>
+                              <div className="text-cyan-300">D: {formatCurrency(dVal)}</div>
+                            </div>
+                          )}
+                          {t.total_additional_fees > 0 && (
+                            <div className="text-[9px] text-amber-400 font-mono">
+                              fees: -{formatCurrency(t.total_additional_fees)}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </td>
                   <td className="py-3 px-3">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                       t.status === 'cancelled'
@@ -1860,7 +2191,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Driver</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('driver')}</label>
                   <select
                     value={fuelForm.driver_id}
                     onChange={(e) => {
@@ -1914,7 +2245,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Amount Disbursed / Approved (ETB)</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('amount_disbursed_approved')}</label>
                   <input
                     type="number"
                     step="any"
@@ -1939,14 +2270,14 @@ export const AdminDashboard = ({ onNavigate }) => {
                     className="w-full py-2 px-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400"
                   >
                     <option value="paid">Paid & Disbursed (Syncs Expense)</option>
-                    <option value="approved">Approved (Awaiting Cashier)</option>
-                    <option value="pending">Pending Approval</option>
-                    <option value="rejected">Rejected</option>
+                    <option value="approved">{t('approved_awaiting_cashier')}</option>
+                    <option value="pending">{t('pending_approval_tab')}</option>
+                    <option value="rejected">{t('status_rejected')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Record Date</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('record_date_label')}</label>
                   <input
                     type="date"
                     value={fuelForm.requested_at}
@@ -1959,10 +2290,10 @@ export const AdminDashboard = ({ onNavigate }) => {
               {/* Fuel Station & Reason */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Fuel Station / Depot</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('fuel_station_depot')}</label>
                   <input
                     type="text"
-                    placeholder="e.g. TotalEnergies Kality"
+                    placeholder={t('fuel_station_ph')}
                     value={fuelForm.fuel_station}
                     onChange={(e) => setFuelForm({ ...fuelForm, fuel_station: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400"
@@ -1973,7 +2304,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <label className="block text-slate-300 mb-1 font-semibold">Purpose / Reason *</label>
                   <input
                     type="text"
-                    placeholder="e.g. Quarry hauling route fuel"
+                    placeholder={t('fuel_reason_ph')}
                     value={fuelForm.reason}
                     onChange={(e) => setFuelForm({ ...fuelForm, reason: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400"
@@ -1984,12 +2315,12 @@ export const AdminDashboard = ({ onNavigate }) => {
 
               {/* Admin Note / Voucher */}
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Admin Notes / Receipt Voucher Ref</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('admin_notes_voucher_ref')}</label>
                 <textarea
                   rows="2"
                   value={fuelForm.admin_note}
                   onChange={(e) => setFuelForm({ ...fuelForm, admin_note: e.target.value })}
-                  placeholder="Receipt number, payment voucher reference, or quota notes..."
+                  placeholder={t('voucher_ref_ph')}
                   className="w-full py-2 px-3 bg-slate-800/90 border border-slate-700 rounded-xl text-white resize-none focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -2076,11 +2407,11 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <tr>
                     <th className="py-2.5 px-3">Req # / Date</th>
                     <th className="py-2.5 px-3">Truck & Driver</th>
-                    <th className="py-2.5 px-3">Amount (ETB)</th>
-                    <th className="py-2.5 px-3">Est. Liters</th>
-                    <th className="py-2.5 px-3">Station / Reason</th>
-                    <th className="py-2.5 px-3">Status</th>
-                    <th className="py-2.5 px-3 text-right">Actions</th>
+                    <th className="py-2.5 px-3">{t('col_amount')}</th>
+                    <th className="py-2.5 px-3">{t('est_liters_header')}</th>
+                    <th className="py-2.5 px-3">{t('station_reason_header')}</th>
+                    <th className="py-2.5 px-3">{t('odo_col_status')}</th>
+                    <th className="py-2.5 px-3 text-right">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">

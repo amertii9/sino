@@ -64,12 +64,12 @@ export const SitesManagement = () => {
   };
 
   const handleDelete = async (site) => {
-    if (!confirm(`Are you sure you want to delete "${site.name}"?`)) return;
+    if (!confirm(t('confirm_delete_site', 'Are you sure you want to delete this site?'))) return;
     try {
       await api.delete(`/sites/${site.id}`);
       fetchSites();
     } catch (err) {
-      alert('Delete failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -170,10 +170,10 @@ export const SitesManagement = () => {
 
             <form onSubmit={handleSave} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Site Name:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('site_name_field_label', 'Site Name:')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. Quarry A (Awash River Basin)"
+                  placeholder={t('quarry_awash_ph', 'e.g. Quarry A (Awash River Basin)')}
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -182,10 +182,10 @@ export const SitesManagement = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Location / Address:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('location_address_label', 'Location / Address:')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. Mile 42 Awash Basin"
+                  placeholder={t('awash_mile_ph', 'e.g. Mile 42 Awash Basin')}
                   value={formData.location}
                   onChange={e => setFormData({ ...formData, location: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -194,10 +194,10 @@ export const SitesManagement = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Description / Notes:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('desc_notes_label', 'Description / Notes:')}</label>
                 <textarea
                   rows="2"
-                  placeholder="e.g. Clean river sand source with automatic hopper loader"
+                  placeholder={t('quarry_sand_desc_ph', 'e.g. Clean river sand source with automatic hopper loader')}
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white resize-none"

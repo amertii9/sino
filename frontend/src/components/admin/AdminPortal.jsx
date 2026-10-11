@@ -64,7 +64,7 @@ export const AdminPortal = () => {
       </div>
 
       {/* Mobile Tab Selector */}
-      <div className="md:hidden p-2 sm:p-3 bg-slate-900 border-b border-slate-800 overflow-x-auto flex space-x-1.5 scrollbar-none">
+      <div className="md:hidden p-2 sm:p-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 overflow-x-auto flex space-x-1.5 scrollbar-none">
         {[
           { id: 'dashboard', label: t('menu_dashboard', 'Dashboard') },
           { id: 'trips', label: t('menu_trips', 'Trips') },
@@ -93,8 +93,10 @@ export const AdminPortal = () => {
                 setActiveTab(item.id);
               }
             }}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
-              activeTab === item.id ? 'bg-amber-500 text-slate-950 shadow-sm' : 'bg-slate-800 text-slate-400 hover:text-white'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+              activeTab === item.id
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             {item.label}

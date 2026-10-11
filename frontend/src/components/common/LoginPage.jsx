@@ -20,7 +20,7 @@ export const LoginPage = () => {
     try {
       await login(email, password);
     } catch (err) {
-      setError(err.message || 'Invalid email/username or password');
+      setError(err.message || t('invalid_credentials', 'Invalid email/username or password'));
     } finally {
       setLoading(false);
     }
@@ -36,7 +36,7 @@ export const LoginPage = () => {
     try {
       await quickLogin(roleKey);
     } catch (err) {
-      setError(err.message || 'Failed to login');
+      setError(err.message || t('failed_to_login', 'Failed to login'));
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export const LoginPage = () => {
                 required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="e.g. name@sino.com or +251 911 555 101"
+                placeholder={t('login_identifier_ph', 'e.g. soneschool1@gmail.com or name@sino.com')}
                 className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
               />
             </div>
@@ -96,7 +96,7 @@ export const LoginPage = () => {
                 required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder={t('password_ph', '••••••••')}
                 className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
               />
             </div>
@@ -115,9 +115,9 @@ export const LoginPage = () => {
                 onClick={handleFillDriver}
                 className="hover:text-emerald-400 transition inline-flex items-center gap-1.5 cursor-pointer bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/80"
               >
-                <span>Driver format:</span>
+                <span>{t('driver_format_label', 'Driver format:')}</span>
                 <span className="font-mono text-emerald-400 font-bold">name@sino.com</span>
-                <span className="text-slate-500 font-sans">(or phone)</span>
+                <span className="text-slate-500 font-sans">({t('or_phone_label', 'or phone')})</span>
               </button>
             </div>
           </form>

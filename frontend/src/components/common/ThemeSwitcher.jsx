@@ -18,7 +18,7 @@ export const ThemeSwitcher = ({ variant = 'default' }) => {
       className={`relative p-1.5 sm:p-2 rounded-lg sm:rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-center group ${
         variant === 'login'
           ? 'bg-slate-800/90 hover:bg-slate-750 text-slate-200 border border-slate-700 shadow-md'
-          : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-amber-400 border border-slate-700/60 shadow-sm'
+          : 'bg-white hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 hover:text-amber-500 border border-slate-200 dark:border-slate-700/60 shadow-xs'
       }`}
       title={title}
       aria-label={title}

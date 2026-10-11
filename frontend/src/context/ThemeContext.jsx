@@ -4,16 +4,14 @@ const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
-    // Check localStorage first
+    // If the user has explicitly manually toggled their theme, honor their preference
+    const manualToggle = localStorage.getItem('fleet_theme_manual');
     const saved = localStorage.getItem('fleet_theme');
-    if (saved === 'light' || saved === 'dark') {
+    if (manualToggle === 'true' && (saved === 'light' || saved === 'dark')) {
       return saved;
     }
-    // Check system preference
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-      return 'light';
-    }
-    return 'dark';
+    // Default setting is light mode for both admin and drivers
+    return 'light';
   });
 
   useEffect(() => {
@@ -24,12 +22,18 @@ export const ThemeProvider = ({ children }) => {
     localStorage.setItem('fleet_theme', theme);
   }, [theme]);
 
+  const updateTheme = (newTheme) => {
+    localStorage.setItem('fleet_theme_manual', 'true');
+    setTheme(newTheme);
+  };
+
   const toggleTheme = () => {
+    localStorage.setItem('fleet_theme_manual', 'true');
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, isDark: theme === 'dark' }}>
+    <ThemeContext.Provider value={{ theme, setTheme: updateTheme, toggleTheme, isDark: theme === 'dark' }}>
       {children}
     </ThemeContext.Provider>
   );

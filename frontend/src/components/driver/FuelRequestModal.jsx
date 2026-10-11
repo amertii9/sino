@@ -12,7 +12,9 @@ import {
   Calculator,
   Building2,
   Sparkles,
-  Info
+  Info,
+  Layers,
+  ArrowRight
 } from 'lucide-react';
 
 export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
@@ -21,6 +23,20 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
 
   // First choice: gas_station vs reserve_fuel
   const [fuelSource, setFuelSource] = useState('gas_station'); // 'gas_station' | 'reserve_fuel'
+
+  // Two-Step Reserve Fuel: 'procure' (Step 1: refill yard tank) vs 'draw' (Step 2: pump from yard tank into truck)
+  const [reserveAction, setReserveAction] = useState('draw');
+  const [reserveProcureReqId, setReserveProcureReqId] = useState('');
+  const [reserveProcureStation, setReserveProcureStation] = useState('TotalEnergies Kality Depot');
+  const [procureLiters, setProcureLiters] = useState(1000);
+  const [reserveInventory, setReserveInventory] = useState({
+    balance_liters: 5000,
+    capacity_liters: 10000,
+    low_threshold_liters: 1500,
+    percentage: 50,
+    status: 'healthy',
+    active_refills: []
+  });
 
   // Truck selection fallback if no truck assigned to driver
   const [selectedTruckId, setSelectedTruckId] = useState('');
@@ -38,14 +54,31 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
   const [error, setError] = useState('');
   const [successReq, setSuccessReq] = useState(null);
 
-  // Quick select chips (customizable by Admin)
+  // Quick select chips
   const [quickLiters, setQuickLiters] = useState([50, 80, 100, 150, 200, 300]);
+  const procureQuickLiters = [500, 1000, 2000, 3000, 5000];
   const depotPresets = ['Main Base Depot (Kality)', 'Site Yard A Depot', 'Quarry Yard Depot', 'Central Workshop'];
+  const commercialSuppliers = ['TotalEnergies Kality', 'NOC Bulk Depot', 'OiLibya Industrial', 'Yetebaberut Beherawi'];
   const [prevOdo, setPrevOdo] = useState(0);
 
   // Active truck resolution
   const activeTruckId = truck?.id || driver?.assigned_truck_id || selectedTruckId;
   const activeTruckPlate = truck?.plate_number || driver?.assigned_truck_plate || selectedTruckPlate;
+
+  // Load inventory status
+  const fetchReserveInventory = async () => {
+    try {
+      const data = await api.get('/fuel-requests/reserve-inventory');
+      if (data) {
+        setReserveInventory(data);
+        if (data.balance_liters <= 0) {
+          setReserveAction('procure');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load reserve inventory:', err);
+    }
+  };
 
   // Fetch benchmark diesel price, trucks and set initial odometer when modal opens
   useEffect(() => {
@@ -95,20 +128,66 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
           }
         })
         .catch(console.error);
+
+      // Fetch yard reserve inventory
+      fetchReserveInventory();
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // Real-time automatic calculation
+  // Real-time automatic calculations
   const parsedLiters = parseFloat(liters) || 0;
+  const parsedProcureLiters = parseFloat(procureLiters) || 0;
   const parsedPrice = parseFloat(pricePerLiter) || 0;
-  const calculatedTotalPrice = parsedLiters * parsedPrice;
+  const calculatedGasStationPrice = parsedLiters * parsedPrice;
+  const calculatedProcurePrice = parsedProcureLiters * parsedPrice;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
+    // Step 1: Procuring / Filling the Reserve Tank
+    if (fuelSource === 'reserve_fuel' && reserveAction === 'procure') {
+      if (!parsedProcureLiters || parsedProcureLiters <= 0) {
+        setError(t('fuel_err_liters', 'Please enter a valid fuel quantity in liters'));
+        return;
+      }
+      if (!parsedPrice || parsedPrice <= 0) {
+        setError(t('fuel_err_price', 'Please enter a valid price per liter'));
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const payload = {
+          truck_id: activeTruckId || '',
+          truck_plate: activeTruckPlate || '',
+          driver_id: driver?.id || user?.id || '',
+          driver_name: driver?.full_name || user?.full_name || '',
+          fuel_source: 'reserve_fuel',
+          reserve_action: 'procure',
+          liters: parsedProcureLiters,
+          price_per_liter: parsedPrice,
+          amount_requested: calculatedProcurePrice,
+          fuel_station: reserveProcureStation || 'Commercial Supplier',
+          reason: reason.trim() || `Company yard reserve tank replenishment (Step 1 Procure): ${parsedProcureLiters} L for ${reserveDepot}`,
+          notes: `Target yard depot: ${reserveDepot}`,
+        };
+
+        const res = await api.post('/fuel-requests', payload);
+        setSuccessReq(res);
+        fetchReserveInventory();
+        if (onSuccess) onSuccess(res);
+      } catch (err) {
+        setError(err.message || 'Failed to submit reserve fuel procurement request');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Commercial Gas Station OR Step 2 Reserve Draw (Pumping into Truck)
     const odoVal = parseFloat(odometerReading);
     if (!odometerReading || isNaN(odoVal) || odoVal < 0) {
       setError(t('fuel_err_odometer', 'Please enter a valid odometer reading (km)'));
@@ -125,6 +204,14 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
       return;
     }
 
+    // If Step 2 Draw, validate against yard inventory balance
+    if (fuelSource === 'reserve_fuel' && reserveAction === 'draw') {
+      if (reserveInventory.balance_liters < parsedLiters) {
+        setError(t('reserve_step2_insufficient_err', `Cannot request more liters (${parsedLiters} L) than available in yard tank (${formatNumber(reserveInventory.balance_liters)} L). Please submit a Step 1 request to replenish first.`));
+        return;
+      }
+    }
+
     if (fuelSource === 'gas_station' && (!parsedPrice || parsedPrice <= 0)) {
       setError(t('fuel_err_price', 'Please enter a valid price per liter'));
       return;
@@ -133,11 +220,17 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
     setLoading(true);
 
     try {
-      const generatedReason = reason.trim() || (
-        fuelSource === 'gas_station'
-          ? `Commercial gas station diesel refueling (${parsedLiters} L @ ${parsedPrice} ETB/L)`
-          : `Company yard reserve fuel dispense (${parsedLiters} L)`
-      );
+      let generatedReason = reason.trim();
+      let amountReq = calculatedGasStationPrice;
+
+      if (fuelSource === 'reserve_fuel') {
+        amountReq = 0; // Internal yard draw, no cash disbursement to driver
+        if (!generatedReason) {
+          generatedReason = `Reserve yard tank pump into truck (Step 2 Draw): ${parsedLiters} L for ${activeTruckPlate || 'vehicle'}`;
+        }
+      } else if (!generatedReason) {
+        generatedReason = `Commercial gas station diesel refueling (${parsedLiters} L @ ${parsedPrice} ETB/L)`;
+      }
 
       const payload = {
         truck_id: activeTruckId || '',
@@ -145,10 +238,12 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
         driver_id: driver?.id || user?.id || '',
         driver_name: driver?.full_name || user?.full_name || '',
         fuel_source: fuelSource,
+        reserve_action: fuelSource === 'reserve_fuel' ? 'draw' : '',
+        reserve_procure_req_id: reserveProcureReqId || '',
         odometer_reading: odoVal,
         liters: parsedLiters,
         price_per_liter: parsedPrice,
-        amount_requested: calculatedTotalPrice,
+        amount_requested: amountReq,
         fuel_station: fuelSource === 'gas_station' ? 'Commercial Gas Station' : reserveDepot,
         reason: generatedReason,
         notes: '',
@@ -156,6 +251,7 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
 
       const res = await api.post('/fuel-requests', payload);
       setSuccessReq(res);
+      fetchReserveInventory();
       if (onSuccess) onSuccess(res);
     } catch (err) {
       setError(err.message || 'Failed to submit fuel request');
@@ -198,29 +294,43 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                 <CheckCircle className="w-8 h-8" />
               </div>
               <h3 className="text-lg font-bold text-white">
-                {t('fuel_success_title', 'Fuel Request Submitted!')}
+                {successReq.fuel_source === 'reserve_fuel' && successReq.reserve_action === 'procure'
+                  ? t('reserve_step1_procure_title', 'Step 1: Refill Yard Tank (Procure Money)')
+                  : successReq.fuel_source === 'reserve_fuel' && successReq.reserve_action === 'draw'
+                  ? t('reserve_step2_draw_title', 'Step 2: Pump from Yard Tank (Draw Fuel)')
+                  : t('fuel_success_title', 'Fuel Request Submitted!')}
               </h3>
+
               <div className="bg-slate-800 p-4 rounded-2xl text-left space-y-2 text-xs text-slate-300">
                 <div className="flex justify-between">
                   <span className="text-slate-400">{t('fuel_req_number', 'Request Number:')}</span>
                   <span className="font-mono font-bold text-amber-400">{successReq.request_number}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Fuel Source:</span>
+                  <span className="text-slate-400">{t('fuel_source_label', 'Fuel Source:')}</span>
                   <span className="font-bold text-white">
-                    {successReq.fuel_source === 'reserve_fuel' ? '🛢️ Reserve Fuel (Yard Depot)' : '⛽ Commercial Gas Station'}
+                    {successReq.fuel_source === 'reserve_fuel' ? (
+                      successReq.reserve_action === 'procure'
+                        ? t('reserve_badge_procure', '🛢️ Step 1: Tank Refill')
+                        : t('reserve_badge_draw', '🚜 Step 2: Truck Draw')
+                    ) : (
+                      t('commercial_station_label', '⛽ Commercial Gas Station')
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Quantity / Odometer:</span>
+                  <span className="text-slate-400">{t('quantity_odometer_label', 'Quantity / Odometer:')}</span>
                   <span className="font-bold text-white">
-                    {successReq.liters || parsedLiters} Liters • {successReq.odometer_reading || odometerReading} km
+                    {successReq.liters || parsedLiters} {t('liters_unit', 'Liters')}
+                    {successReq.odometer_reading > 0 ? ` • ${successReq.odometer_reading} km` : ''}
                   </span>
                 </div>
                 <div className="flex justify-between border-t border-slate-700/80 pt-1.5">
-                  <span className="text-slate-400">Total Price:</span>
+                  <span className="text-slate-400">{t('total_price_label', 'Total Price:')}</span>
                   <span className="font-bold text-emerald-400 text-sm font-mono">
-                    {formatCurrency(successReq.amount_requested || calculatedTotalPrice)}
+                    {successReq.fuel_source === 'reserve_fuel' && successReq.reserve_action === 'draw'
+                      ? `${formatCurrency(successReq.liters * (successReq.price_per_liter || parsedPrice))} (Internal Stock Draw)`
+                      : formatCurrency(successReq.amount_requested || calculatedGasStationPrice)}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -271,7 +381,7 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                 </div>
               )}
 
-              {/* 1. FIRST CHOICE: GAS STATION VS RESERVE FUEL */}
+              {/* 1. PRIMARY SOURCE CHOICE: COMMERCIAL GAS STATION VS RESERVE FUEL */}
               <div>
                 <label className="block text-xs font-bold text-slate-200 mb-2">
                   {t('fuel_source_title', 'Choose Fuel Source:')}
@@ -306,10 +416,13 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                   {/* Reserve Fuel Option */}
                   <button
                     type="button"
-                    onClick={() => setFuelSource('reserve_fuel')}
+                    onClick={() => {
+                      setFuelSource('reserve_fuel');
+                      fetchReserveInventory();
+                    }}
                     className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
                       fuelSource === 'reserve_fuel'
-                        ? 'bg-amber-500/15 border-amber-500 text-white shadow-md shadow-amber-500/10 ring-1 ring-amber-500/50'
+                        ? 'bg-cyan-500/15 border-cyan-500 text-white shadow-md shadow-cyan-500/10 ring-1 ring-cyan-500/50'
                         : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-300'
                     }`}
                   >
@@ -325,13 +438,13 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                       </div>
                     </div>
                     {fuelSource === 'reserve_fuel' && (
-                      <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                      <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                     )}
                   </button>
                 </div>
               </div>
 
-              {/* SECTION: GAS STATION FIELDS */}
+              {/* SECTION: COMMERCIAL GAS STATION FIELDS */}
               {fuelSource === 'gas_station' && (
                 <div className="space-y-4 pt-1">
                   {/* A. ODOMETER READING */}
@@ -406,7 +519,7 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                         className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono font-bold text-base focus:outline-none focus:border-amber-500"
                         required
                       />
-                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">Liters</span>
+                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">{t('liters_unit', 'Liters')}</span>
                     </div>
 
                     {/* Quick Liter Chips */}
@@ -443,14 +556,14 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                         className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-amber-400 font-mono font-bold text-base focus:outline-none focus:border-amber-500"
                         required
                       />
-                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">ETB / L</span>
+                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">{t('etb_per_liter', 'ETB / L')}</span>
                     </div>
                     <span className="text-[10px] text-slate-400 mt-1 block">
-                      Standard diesel benchmark benchmark set by admin
+                      {t('standard_diesel_benchmark', 'Standard diesel benchmark set by admin')}
                     </span>
                   </div>
 
-                  {/* D. AUTOMATICALLY CALCULATE TOTAL PRICE (Requirement) */}
+                  {/* D. AUTOMATICALLY CALCULATE TOTAL PRICE */}
                   <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-1 shadow-inner">
                     <div className="flex items-center justify-between text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
                       <span className="flex items-center gap-1.5">
@@ -463,7 +576,7 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                     </div>
 
                     <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight pt-0.5">
-                      {formatCurrency(calculatedTotalPrice)}
+                      {formatCurrency(calculatedGasStationPrice)}
                     </div>
                     <div className="text-[11px] text-slate-400">
                       This total amount will be submitted to dispatch for approval & payout
@@ -472,153 +585,375 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                 </div>
               )}
 
-              {/* SECTION: RESERVE FUEL FIELDS */}
+              {/* SECTION: TWO-STEP RESERVE FUEL (COMPANY YARD TANK) */}
               {fuelSource === 'reserve_fuel' && (
                 <div className="space-y-4 pt-1">
-                  {/* A. ODOMETER READING */}
+                  {/* TWO-STEP SELECTOR SWITCH */}
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                        <Gauge className="w-3.5 h-3.5 text-amber-400" />
-                        {t('fuel_odometer_label', 'Truck Odometer Reading (km) *')}
-                      </label>
-                      {prevOdo > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setOdometerReading(String(prevOdo))}
-                          className="text-[10px] text-amber-400 hover:underline font-mono"
-                        >
-                          Use Last: {formatNumber(prevOdo)} km
-                        </button>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="any"
-                        min={prevOdo > 0 ? prevOdo : undefined}
-                        value={odometerReading}
-                        onChange={(e) => setOdometerReading(e.target.value)}
-                        placeholder="e.g. 45200"
-                        className={`w-full py-2.5 px-3 bg-slate-800 border rounded-xl font-mono font-bold text-sm focus:outline-none transition-colors ${
-                          prevOdo > 0 && odometerReading && parseFloat(odometerReading) < prevOdo
-                            ? 'border-red-500 text-red-400 focus:border-red-500'
-                            : 'border-slate-700 text-white focus:border-amber-500'
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      {t('fuel_reserve_step_selector', 'Choose Reserve Fuel Step:')}
+                    </label>
+                    <div className="bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700/80 grid grid-cols-2 gap-1.5">
+                      {/* Step 1 Button */}
+                      <button
+                        type="button"
+                        onClick={() => setReserveAction('procure')}
+                        className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                          reserveAction === 'procure'
+                            ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
+                            : 'text-slate-400 hover:text-white'
                         }`}
-                        required
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">KM</span>
+                      >
+                        <span className="text-base">🛢️</span>
+                        <span>{t('reserve_step1_procure_badge', 'Step 1 • Tank Refill')}</span>
+                      </button>
+
+                      {/* Step 2 Button */}
+                      <button
+                        type="button"
+                        onClick={() => setReserveAction('draw')}
+                        className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                          reserveAction === 'draw'
+                            ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span className="text-base">🚜</span>
+                        <span>{t('reserve_step2_draw_badge', 'Step 2 • Truck Pump')}</span>
+                      </button>
                     </div>
-                    {prevOdo > 0 && (
-                      <div className="mt-1 text-[11px] text-slate-400 flex items-center justify-between">
-                        <span>{t('odo_min_required', 'Minimum allowed reading (last recorded):')}</span>
-                        <span className="font-mono font-bold text-amber-400">{formatNumber(prevOdo)} km</span>
+                  </div>
+
+                  {/* REAL-TIME YARD TANK STOCK GAUGE */}
+                  <div className="p-3.5 bg-slate-800/90 border border-slate-700/80 rounded-2xl space-y-2 shadow-inner">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                        <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+                        {t('reserve_tank_level_gauge', 'Company Yard Tank Level')}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          reserveInventory.status === 'empty'
+                            ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse'
+                            : reserveInventory.status === 'low'
+                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
+                            : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                        }`}
+                      >
+                        {reserveInventory.status === 'empty'
+                          ? t('reserve_stock_empty', 'Yard Tank Empty')
+                          : reserveInventory.status === 'low'
+                          ? t('reserve_stock_low', 'Low Stock Warning')
+                          : t('reserve_stock_healthy', 'In Stock / Healthy')}
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline justify-between text-xs font-mono">
+                      <div className="text-xl font-black text-white">
+                        {formatNumber(reserveInventory.balance_liters)} <span className="text-xs font-semibold text-slate-400">L</span>
                       </div>
-                    )}
-                    {prevOdo > 0 && odometerReading && parseFloat(odometerReading) < prevOdo && (
-                      <div className="mt-1.5 p-2 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-300 flex items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                          <span>Cannot be less than previous reading ({formatNumber(prevOdo)} km).</span>
+                      <div className="text-[11px] text-slate-400">
+                        {t('reserve_tank_capacity_label', 'Capacity:')} {formatNumber(reserveInventory.capacity_liters)} L ({Math.round(reserveInventory.percentage || 0)}%)
+                      </div>
+                    </div>
+
+                    {/* Gauge bar */}
+                    <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-700/60">
+                      <div
+                        className={`h-full transition-all duration-500 ${
+                          reserveInventory.status === 'empty'
+                            ? 'bg-red-500'
+                            : reserveInventory.status === 'low'
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(0, reserveInventory.percentage || 0))}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* ================= STEP 1: PROCURING / FILLING YARD TANK ================= */}
+                  {reserveAction === 'procure' && (
+                    <div className="space-y-3.5 bg-cyan-950/20 border border-cyan-500/30 p-3.5 rounded-2xl">
+                      <div className="text-xs text-cyan-300 font-semibold flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                        <span>{t('reserve_step1_procure_sub', 'Request funds to purchase fuel for company yard reserve tank')}</span>
+                      </div>
+
+                      {/* Procure Liters */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          {t('fuel_liters_label', 'Fuel Quantity to Buy (Liters) *')}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            value={procureLiters}
+                            onChange={(e) => setProcureLiters(e.target.value)}
+                            placeholder="e.g. 1000"
+                            className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono font-bold text-base focus:outline-none focus:border-cyan-500"
+                            required
+                          />
+                          <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">{t('liters_unit', 'Liters')}</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setOdometerReading(String(prevOdo))}
-                          className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold rounded-lg border border-amber-500/40 text-[11px] whitespace-nowrap cursor-pointer"
-                        >
-                          Use {formatNumber(prevOdo)} km
-                        </button>
+
+                        {/* Quick Procure Chips */}
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {procureQuickLiters.map((val) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => setProcureLiters(val)}
+                              className={`px-3 py-1 rounded-xl text-xs font-bold border transition ${
+                                parseFloat(procureLiters) === val
+                                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
+                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
+                              }`}
+                            >
+                              {val} L
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    )}
-                  </div>
 
-                  {/* B. RESERVE LITERS */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      {t('fuel_liters_label', 'Reserve Fuel Quantity (Liters) *')}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="any"
-                        value={liters}
-                        onChange={(e) => setLiters(e.target.value)}
-                        placeholder="e.g. 100"
-                        className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono font-bold text-base focus:outline-none focus:border-amber-500"
-                        required
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">Liters</span>
-                    </div>
+                      {/* Supplier Station */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          {t('reserve_step1_station_label', 'Commercial Supplier / Fuel Station')}
+                        </label>
+                        <input
+                          type="text"
+                          value={reserveProcureStation}
+                          onChange={(e) => setReserveProcureStation(e.target.value)}
+                          placeholder={t('reserve_step1_station_ph', 'e.g. TotalEnergies Kality or NOC Bulk Depot')}
+                          className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                        />
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {commercialSuppliers.map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setReserveProcureStation(s)}
+                              className={`text-[10px] px-2 py-0.5 rounded-lg border transition ${
+                                reserveProcureStation === s
+                                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 font-bold'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                              }`}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
 
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {quickLiters.map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setLiters(val)}
-                          className={`px-3 py-1 rounded-xl text-xs font-bold border transition ${
-                            parseFloat(liters) === val
-                              ? 'bg-amber-500 text-slate-950 border-amber-400'
-                              : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
-                          }`}
-                        >
-                          {val} L
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                      {/* Target Depot */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                          {t('fuel_reserve_depot_label', 'Target Company Yard Tank / Depot Location')}
+                        </label>
+                        <input
+                          type="text"
+                          value={reserveDepot}
+                          onChange={(e) => setReserveDepot(e.target.value)}
+                          className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white"
+                          placeholder={t('reserve_depot_ph', 'e.g. Main Base Depot (Kality)')}
+                        />
+                      </div>
 
-                  {/* C. RESERVE DEPOT / YARD LOCATION */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                      {t('fuel_reserve_depot_label', 'Reserve Yard Tank / Depot Location')}
-                    </label>
-                    <input
-                      type="text"
-                      value={reserveDepot}
-                      onChange={(e) => setReserveDepot(e.target.value)}
-                      className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-100"
-                      placeholder="e.g. Main Base Depot (Kality)"
-                    />
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {depotPresets.map((dp) => (
-                        <button
-                          key={dp}
-                          type="button"
-                          onClick={() => setReserveDepot(dp)}
-                          className={`text-[10px] px-2.5 py-1 rounded-lg border transition ${
-                            reserveDepot === dp
-                              ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 font-bold'
-                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-                          }`}
-                        >
-                          {dp}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                      {/* Price Per Liter */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          {t('fuel_price_per_liter_label', 'Price per Liter (ETB / L) *')}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            value={pricePerLiter}
+                            onChange={(e) => setPricePerLiter(e.target.value)}
+                            className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-amber-400 font-mono font-bold text-sm"
+                            required
+                          />
+                          <span className="absolute right-3 top-2 text-xs text-slate-400 font-bold">ETB/L</span>
+                        </div>
+                      </div>
 
-                  {/* D. RESERVE DISPENSE VALUE INFO BOX */}
-                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-2xl space-y-1">
-                    <div className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Reserve Yard Fuel Dispense</span>
+                      {/* Total Amount to Request */}
+                      <div className="p-3.5 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl space-y-1">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-cyan-400 uppercase tracking-wider">
+                          <span className="flex items-center gap-1.5">
+                            <Calculator className="w-3.5 h-3.5" />
+                            {t('fuel_calculated_total', 'Automatically Calculated Total Price:')}
+                          </span>
+                          <span className="font-mono text-slate-300 font-semibold normal-case">
+                            {parsedProcureLiters} L × {parsedPrice} ETB
+                          </span>
+                        </div>
+                        <div className="text-2xl font-black text-cyan-400 font-mono">
+                          {formatCurrency(calculatedProcurePrice)}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Money will be requested from finance to purchase fuel and fill the yard tank
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xl font-black text-blue-300 font-mono">
-                      {parsedLiters} Liters Requested
+                  )}
+
+                  {/* ================= STEP 2: PUMPING / DRAWING FROM YARD TANK INTO TRUCK ================= */}
+                  {reserveAction === 'draw' && (
+                    <div className="space-y-3.5 bg-amber-950/20 border border-amber-500/30 p-3.5 rounded-2xl">
+                      <div className="text-xs text-amber-300 font-semibold flex items-center gap-1.5">
+                        <ArrowRight className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>{t('reserve_step2_draw_sub', 'Draw diesel from company yard tank directly into truck')}</span>
+                      </div>
+
+                      {reserveInventory.balance_liters <= 0 && (
+                        <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-xs text-red-200 flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                          <div>
+                            <strong>{t('reserve_stock_empty', 'Yard Tank Empty')}!</strong>{' '}
+                            {t('reserve_step2_insufficient_err', 'Cannot request more liters than available in yard tank. Please submit a Step 1 request to replenish first.')}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ODOMETER READING */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                            <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                            {t('fuel_odometer_label', 'Truck Odometer Reading (km) *')}
+                          </label>
+                          {prevOdo > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setOdometerReading(String(prevOdo))}
+                              className="text-[10px] text-amber-400 hover:underline font-mono"
+                            >
+                              Use Last: {formatNumber(prevOdo)} km
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            min={prevOdo > 0 ? prevOdo : undefined}
+                            value={odometerReading}
+                            onChange={(e) => setOdometerReading(e.target.value)}
+                            placeholder="e.g. 45200"
+                            className={`w-full py-2.5 px-3 bg-slate-800 border rounded-xl font-mono font-bold text-sm focus:outline-none transition-colors ${
+                              prevOdo > 0 && odometerReading && parseFloat(odometerReading) < prevOdo
+                                ? 'border-red-500 text-red-400 focus:border-red-500'
+                                : 'border-slate-700 text-white focus:border-amber-500'
+                            }`}
+                            required
+                          />
+                          <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">KM</span>
+                        </div>
+                        {prevOdo > 0 && (
+                          <div className="mt-1 text-[11px] text-slate-400 flex items-center justify-between">
+                            <span>{t('odo_min_required', 'Minimum allowed reading (last recorded):')}</span>
+                            <span className="font-mono font-bold text-amber-400">{formatNumber(prevOdo)} km</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Liters to Pump into Truck */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-semibold text-slate-300">
+                            {t('fuel_liters_label', 'Liters to Pump into Truck *')}
+                          </label>
+                          <span className="text-[11px] text-cyan-400 font-mono">
+                            {t('reserve_step2_max_avail', 'Maximum available:')} {formatNumber(reserveInventory.balance_liters)} L
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            max={reserveInventory.balance_liters > 0 ? reserveInventory.balance_liters : undefined}
+                            value={liters}
+                            onChange={(e) => setLiters(e.target.value)}
+                            placeholder="e.g. 100"
+                            className={`w-full py-2.5 px-3 bg-slate-800 border rounded-xl text-white font-mono font-bold text-base focus:outline-none ${
+                              parsedLiters > reserveInventory.balance_liters
+                                ? 'border-red-500 text-red-400'
+                                : 'border-slate-700 focus:border-amber-500'
+                            }`}
+                            required
+                          />
+                          <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">{t('liters_unit', 'Liters')}</span>
+                        </div>
+
+                        {/* Quick Liters Chips */}
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {quickLiters
+                            .filter((val) => val <= (reserveInventory.balance_liters || 5000))
+                            .map((val) => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => setLiters(val)}
+                                className={`px-3 py-1 rounded-xl text-xs font-bold border transition ${
+                                  parseFloat(liters) === val
+                                    ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
+                                }`}
+                              >
+                                {val} L
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+
+                      {/* Optional: Linked Refill Batch */}
+                      {reserveInventory.active_refills?.length > 0 && (
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            {t('reserve_step2_refill_ref', 'Associated Approved Refill Batch (Optional)')}
+                          </label>
+                          <select
+                            value={reserveProcureReqId}
+                            onChange={(e) => setReserveProcureReqId(e.target.value)}
+                            className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200"
+                          >
+                            <option value="">-- General Yard Tank Stock --</option>
+                            {reserveInventory.active_refills.map((ref) => (
+                              <option key={ref.id} value={ref.id}>
+                                {ref.request_number} • {ref.liters} L Refill ({ref.fuel_station || 'Yard Tank'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Internal Inventory Valuation Callout */}
+                      <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-2xl space-y-1">
+                        <div className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5" />
+                          <span>{t('reserve_internal_dispense_note', 'Fuel is drawn from company inventory. No driver cash payout is disbursed.')}</span>
+                        </div>
+                        <div className="text-lg font-black text-blue-300 font-mono">
+                          {parsedLiters} L (@ {parsedPrice} ETB/L = {formatCurrency(parsedLiters * parsedPrice)})
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-400">
-                      Internal inventory dispense • Valuation: {formatCurrency(calculatedTotalPrice)} (@ {parsedPrice} ETB/L)
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
 
               {/* SUBMIT BUTTON */}
               <button
                 type="submit"
-                disabled={loading || (prevOdo > 0 && odometerReading && parseFloat(odometerReading) < prevOdo)}
+                disabled={
+                  loading ||
+                  (fuelSource === 'reserve_fuel' && reserveAction === 'draw' && (parsedLiters > reserveInventory.balance_liters || reserveInventory.balance_liters <= 0)) ||
+                  (prevOdo > 0 && odometerReading && parseFloat(odometerReading) < prevOdo && (fuelSource === 'gas_station' || reserveAction === 'draw'))
+                }
                 className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 text-slate-950 font-bold rounded-2xl shadow-lg shadow-amber-500/20 transition cursor-pointer flex items-center justify-center space-x-2"
               >
                 <Fuel className="w-4 h-4" />
@@ -626,8 +961,10 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
                   {loading
                     ? t('fuel_submitting', 'Submitting...')
                     : fuelSource === 'gas_station'
-                    ? `${t('fuel_submit_btn', 'Submit Fuel Request')} (${formatCurrency(calculatedTotalPrice)})`
-                    : `Submit Reserve Request (${parsedLiters} Liters)`}
+                    ? `${t('fuel_submit_btn', 'Submit Fuel Request')} (${formatCurrency(calculatedGasStationPrice)})`
+                    : reserveAction === 'procure'
+                    ? `${t('reserve_step1_submit_btn', 'Request Money to Refill Yard Tank')} (${formatCurrency(calculatedProcurePrice)})`
+                    : `${t('reserve_step2_submit_btn', 'Submit Fuel Draw Request')} (${parsedLiters} L)`}
                 </span>
               </button>
             </form>
@@ -637,4 +974,5 @@ export const FuelRequestModal = ({ isOpen, onClose, onSuccess }) => {
     </div>
   );
 };
+
 export default FuelRequestModal;

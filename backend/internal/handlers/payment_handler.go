@@ -159,16 +159,20 @@ func (h *PaymentHandler) GetPayments(c *gin.Context) {
 	var totalPaidCount int
 
 	for _, t := range allCompleted {
+		gross := t.GrossRevenue
+		if gross <= 0 {
+			gross = t.TotalRevenue
+		}
 		if t.PaymentStatus == "paid" {
 			totalPaidCount++
 			if t.PaidAmount > 0 {
 				totalPaidAmount += t.PaidAmount
 			} else {
-				totalPaidAmount += t.TotalRevenue
+				totalPaidAmount += gross
 			}
 		} else {
 			totalPendingCount++
-			totalPendingAmount += t.TotalRevenue
+			totalPendingAmount += gross
 		}
 	}
 
@@ -217,16 +221,20 @@ func (h *PaymentHandler) GetPaymentSummary(c *gin.Context) {
 	var paidCount int
 
 	for _, t := range trips {
+		gross := t.GrossRevenue
+		if gross <= 0 {
+			gross = t.TotalRevenue
+		}
 		if t.PaymentStatus == "paid" {
 			paidCount++
 			if t.PaidAmount > 0 {
 				paidAmount += t.PaidAmount
 			} else {
-				paidAmount += t.TotalRevenue
+				paidAmount += gross
 			}
 		} else {
 			pendingCount++
-			pendingAmount += t.TotalRevenue
+			pendingAmount += gross
 		}
 	}
 
@@ -281,8 +289,14 @@ func (h *PaymentHandler) ApprovePayment(c *gin.Context) {
 
 	paidAmount := input.PaidAmount
 	if paidAmount <= 0 {
-		paidAmount = existing.TotalRevenue
+		if existing.GrossRevenue > 0 {
+			paidAmount = existing.GrossRevenue
+		} else {
+			paidAmount = existing.TotalRevenue
+		}
 	}
+
+	netRevenue := paidAmount - existing.TotalAdditionalFees
 
 	paidAt := time.Now()
 	if input.PaidAt != "" {
@@ -300,6 +314,8 @@ func (h *PaymentHandler) ApprovePayment(c *gin.Context) {
 		"payment_status": "paid",
 		"payment_method": paymentMethod,
 		"paid_amount":    paidAmount,
+		"net_revenue":    netRevenue,
+		"total_revenue":  netRevenue,
 		"paid_at":        paidAt,
 		"paid_by":        adminName,
 		"updated_at":     time.Now(),
@@ -321,6 +337,46 @@ func (h *PaymentHandler) ApprovePayment(c *gin.Context) {
 		return
 	}
 
+	// Ensure synchronized active Expense records exist for all additional fees incurred on this trip
+	for _, fee := range existing.AdditionalFees {
+		if fee.Amount > 0 {
+			count, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+				"trip_id": existing.ID.Hex(),
+				"amount":  fee.Amount,
+				"status":  "active",
+			})
+			if count == 0 {
+				expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
+				expType := fee.FeeType
+				if expType != "toll" && expType != "parking" && expType != "washing" && expType != "maintenance" && expType != "weighbridge" && expType != "gate_fee" {
+					expType = "other"
+				}
+				desc := fee.Description
+				if desc == "" {
+					desc = fmt.Sprintf("Trip %s: %s fee (deducted upon payment approval)", existing.TripNumber, strings.Title(fee.FeeType))
+				}
+				expense := models.Expense{
+					ID:            bson.NewObjectID(),
+					ExpenseNumber: expNumber,
+					TruckID:       existing.TruckID,
+					TruckPlate:    existing.TruckPlate,
+					DriverID:      existing.DriverID,
+					DriverName:    existing.DriverName,
+					TripID:        existing.ID.Hex(),
+					TripNumber:    existing.TripNumber,
+					ExpenseType:   expType,
+					Amount:        fee.Amount,
+					Date:          paidAt,
+					Description:   desc,
+					ReceiptNumber: fmt.Sprintf("TRIP-%s", existing.TripNumber),
+					Status:        "active",
+					CreatedAt:     time.Now(),
+				}
+				_, _ = h.DB.Expenses.InsertOne(ctx, expense)
+			}
+		}
+	}
+
 	// Fetch updated trip
 	var updated models.Trip
 	_ = h.DB.Trips.FindOne(ctx, bson.M{"_id": objID}).Decode(&updated)
@@ -328,11 +384,11 @@ func (h *PaymentHandler) ApprovePayment(c *gin.Context) {
 	// Audit Log
 	h.LogAudit(ctx, adminID, adminName, "Approved Trip Payment", "Trip", existing.ID.Hex(),
 		"pending",
-		fmt.Sprintf("Payment of %.0f ETB approved for Trip %s via %s (Ref: %s)",
-			paidAmount, existing.TripNumber, paymentMethod, input.PaymentRef))
+		fmt.Sprintf("Gross payment of %.0f ETB approved for Trip %s (Net: %.0f ETB after %.0f ETB expenses) via %s (Ref: %s)",
+			paidAmount, existing.TripNumber, netRevenue, existing.TotalAdditionalFees, paymentMethod, input.PaymentRef))
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Payment for Trip %s approved successfully", existing.TripNumber),
+		"message": fmt.Sprintf("Gross payment for Trip %s approved successfully (expenses deducted)", existing.TripNumber),
 		"trip":    updated,
 	})
 }
@@ -425,31 +481,82 @@ func (h *PaymentHandler) BatchApprovePayments(c *gin.Context) {
 		return
 	}
 
-	update := bson.M{
-		"$set": bson.M{
-			"payment_status": "paid",
-			"payment_method": paymentMethod,
-			"payment_ref":    input.PaymentRef,
-			"payer_name":     input.PayerName,
-			"payment_notes":  input.PaymentNotes,
-			"paid_at":        paidAt,
-			"paid_by":        adminName,
-			"updated_at":     time.Now(),
-		},
-	}
+	var modifiedCount int64
+	for _, oid := range objIDs {
+		var trip models.Trip
+		if err := h.DB.Trips.FindOne(ctx, bson.M{"_id": oid}).Decode(&trip); err == nil {
+			tripPaid := trip.GrossRevenue
+			if tripPaid <= 0 {
+				tripPaid = trip.TotalRevenue
+			}
+			netRevenue := tripPaid - trip.TotalAdditionalFees
+			tripUpdate := bson.M{
+				"$set": bson.M{
+					"payment_status": "paid",
+					"payment_method": paymentMethod,
+					"payment_ref":    input.PaymentRef,
+					"payer_name":     input.PayerName,
+					"payment_notes":  input.PaymentNotes,
+					"paid_amount":    tripPaid,
+					"net_revenue":    netRevenue,
+					"total_revenue":  netRevenue,
+					"paid_at":        paidAt,
+					"paid_by":        adminName,
+					"updated_at":     time.Now(),
+				},
+			}
+			if uRes, err := h.DB.Trips.UpdateOne(ctx, bson.M{"_id": oid}, tripUpdate); err == nil {
+				modifiedCount += uRes.ModifiedCount
+			}
 
-	res, err := h.DB.Trips.UpdateMany(ctx, bson.M{"_id": bson.M{"$in": objIDs}}, update)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to batch approve payments: " + err.Error()})
-		return
+			// Ensure synchronized active Expense records exist for all fees incurred on this trip
+			for _, fee := range trip.AdditionalFees {
+				if fee.Amount > 0 {
+					count, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+						"trip_id": trip.ID.Hex(),
+						"amount":  fee.Amount,
+						"status":  "active",
+					})
+					if count == 0 {
+						expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
+						expType := fee.FeeType
+						if expType != "toll" && expType != "parking" && expType != "washing" && expType != "maintenance" && expType != "weighbridge" && expType != "gate_fee" {
+							expType = "other"
+						}
+						desc := fee.Description
+						if desc == "" {
+							desc = fmt.Sprintf("Trip %s: %s fee (deducted upon payment approval)", trip.TripNumber, strings.Title(fee.FeeType))
+						}
+						expense := models.Expense{
+							ID:            bson.NewObjectID(),
+							ExpenseNumber: expNumber,
+							TruckID:       trip.TruckID,
+							TruckPlate:    trip.TruckPlate,
+							DriverID:      trip.DriverID,
+							DriverName:    trip.DriverName,
+							TripID:        trip.ID.Hex(),
+							TripNumber:    trip.TripNumber,
+							ExpenseType:   expType,
+							Amount:        fee.Amount,
+							Date:          paidAt,
+							Description:   desc,
+							ReceiptNumber: fmt.Sprintf("TRIP-%s", trip.TripNumber),
+							Status:        "active",
+							CreatedAt:     time.Now(),
+						}
+						_, _ = h.DB.Expenses.InsertOne(ctx, expense)
+					}
+				}
+			}
+		}
 	}
 
 	h.LogAudit(ctx, adminID, adminName, "Batch Approved Trip Payments", "Trip",
 		fmt.Sprintf("%d trips", len(objIDs)), "pending",
-		fmt.Sprintf("Batch approved %d trips via %s (Ref: %s)", res.ModifiedCount, paymentMethod, input.PaymentRef))
+		fmt.Sprintf("Batch approved %d trips via %s (Ref: %s)", modifiedCount, paymentMethod, input.PaymentRef))
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":        fmt.Sprintf("Successfully approved %d trip payments", res.ModifiedCount),
-		"modified_count": res.ModifiedCount,
+		"message":        fmt.Sprintf("Successfully approved %d trip payments", modifiedCount),
+		"modified_count": modifiedCount,
 	})
 }

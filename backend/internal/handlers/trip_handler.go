@@ -22,32 +22,94 @@ func NewTripHandler(base BaseHandler) *TripHandler {
 	return &TripHandler{BaseHandler: base}
 }
 
+func normalizeUnit(u string) string {
+	switch strings.ToLower(strings.TrimSpace(u)) {
+	case "ton", "tons", "t":
+		return "ton"
+	case "quintal", "quintals", "q":
+		return "quintal"
+	case "kg", "kilogram", "kilograms":
+		return "kg"
+	default:
+		return "ton"
+	}
+}
+
+func calculateUnifiedQuantity(quantityKg float64, targetUnit string) float64 {
+	switch normalizeUnit(targetUnit) {
+	case "quintal":
+		return quantityKg / 100.0
+	case "kg":
+		return quantityKg
+	default: // "ton"
+		return quantityKg / 1000.0
+	}
+}
+
+func toKg(quantity float64, unit string) float64 {
+	switch normalizeUnit(unit) {
+	case "quintal":
+		return quantity * 100.0
+	case "kg":
+		return quantity
+	default: // "ton"
+		return quantity * 1000.0
+	}
+}
+
+func computeLegRevenue(qty float64, unit string, method string, unitPrice float64, lumpSum float64) float64 {
+	m := strings.ToLower(strings.TrimSpace(method))
+	if m == "lump_sum" {
+		return lumpSum
+	}
+	return qty * unitPrice
+}
+
 type CreateTripInput struct {
-	TruckID             string    `json:"truck_id"`
-	TruckPlate          string    `json:"truck_plate"`
-	DriverID            string    `json:"driver_id"`
-	DriverName          string    `json:"driver_name"`
-	LoadingSiteID       string    `json:"loading_site_id" binding:"required"`
-	LoadingSiteName     string    `json:"loading_site_name"`
-	DumpingSiteID       string    `json:"dumping_site_id" binding:"required"`
-	DumpingSiteName     string    `json:"dumping_site_name"`
-	HasTransition       bool      `json:"has_transition"`
-	TransitionPointIDs  []string  `json:"transition_point_ids"`
-	TransitionPointName string    `json:"transition_point_name"`
-	MaterialID          string    `json:"material_id" binding:"required"`
-	MaterialName        string    `json:"material_name"`
-	Quantity            float64   `json:"quantity" binding:"required"`
-	Unit                string    `json:"unit" binding:"required"`                     // "kg", "quintal", "ton"
-	PricingMethod       string    `json:"pricing_method" binding:"required"`           // "per_kg", "per_quintal", "per_ton", "lump_sum"
-	UnitPrice           float64          `json:"unit_price"`
-	LumpSum             float64          `json:"lump_sum"`
-	AdditionalFees      []models.TripFee `json:"additional_fees"`
-	StartOdometer       float64          `json:"start_odometer"`
-	EndOdometer         float64          `json:"end_odometer"`
-	ReceiptNumber       string           `json:"receipt_number"`
-	Status              string           `json:"status"`
-	Date                string           `json:"date"`
-	Notes               string           `json:"notes"`
+	TruckID                  string           `json:"truck_id"`
+	TruckPlate               string           `json:"truck_plate"`
+	DriverID                 string           `json:"driver_id"`
+	DriverName               string           `json:"driver_name"`
+	LoadingSiteID            string           `json:"loading_site_id" binding:"required"`
+	LoadingSiteName          string           `json:"loading_site_name"`
+	DumpingSiteID            string           `json:"dumping_site_id" binding:"required"`
+	DumpingSiteName          string           `json:"dumping_site_name"`
+	HasTransition            bool             `json:"has_transition"`
+	TransitionPointIDs       []string         `json:"transition_point_ids"`
+	TransitionPointName      string           `json:"transition_point_name"`
+	MaterialID               string           `json:"material_id" binding:"required"`
+	MaterialName             string           `json:"material_name"`
+	Quantity                 float64          `json:"quantity"`
+	Unit                     string           `json:"unit"`
+	PricingMethod            string           `json:"pricing_method"`
+	UnitPrice                float64          `json:"unit_price"`
+	PricingTarget            string           `json:"pricing_target"`
+	TransitUnitPrice          float64          `json:"transit_unit_price"`
+	TransitUnitPriceSplit     float64          `json:"transit_unit_price_split"`
+	DestinationUnitPrice      float64          `json:"destination_unit_price"`
+	DestinationUnitPriceSplit float64          `json:"destination_unit_price_split"`
+	PriceDifference          float64          `json:"price_difference"`
+	LumpSum                  float64          `json:"lump_sum"`
+	IsSplitDrop              bool             `json:"is_split_drop"`
+	TransitQuantity          float64          `json:"transit_quantity"`
+	TransitUnit              string           `json:"transit_unit"`
+	TransitPricingMethod     string           `json:"transit_pricing_method"`
+	TransitLumpSum           float64          `json:"transit_lump_sum"`
+	TransitReceiptNumber     string           `json:"transit_receipt_number"`
+	DestinationQuantity      float64          `json:"destination_quantity"`
+	DestinationUnit          string           `json:"destination_unit"`
+	DestinationPricingMethod string           `json:"destination_pricing_method"`
+	DestinationLumpSum       float64          `json:"destination_lump_sum"`
+	DestinationReceiptNumber string           `json:"destination_receipt_number"`
+	AdditionalFees           []models.TripFee `json:"additional_fees"`
+	StartOdometer            float64          `json:"start_odometer"`
+	EndOdometer              float64          `json:"end_odometer"`
+	ReceiptNumber            string           `json:"receipt_number"`
+	Status                   string           `json:"status"`
+	Date                     string           `json:"date"`
+	DropOffLocation          string           `json:"drop_off_location"`
+	TransitNotes             string           `json:"transit_notes"`
+	Notes                    string           `json:"notes"`
 }
 
 func (h *TripHandler) CreateTrip(c *gin.Context) {
@@ -57,19 +119,34 @@ func (h *TripHandler) CreateTrip(c *gin.Context) {
 		return
 	}
 
-	if input.Quantity <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Quantity must be greater than zero"})
-		return
+	if input.TransitUnitPrice <= 0 && input.TransitUnitPriceSplit > 0 {
+		input.TransitUnitPrice = input.TransitUnitPriceSplit
+	}
+	if input.DestinationUnitPrice <= 0 && input.DestinationUnitPriceSplit > 0 {
+		input.DestinationUnitPrice = input.DestinationUnitPriceSplit
 	}
 
-	if input.PricingMethod != "lump_sum" && input.UnitPrice <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unit price must be greater than zero"})
-		return
-	}
+	isSplit := input.IsSplitDrop && (input.TransitQuantity > 0 || input.DestinationQuantity > 0)
+	if isSplit {
+		if input.TransitQuantity <= 0 && input.DestinationQuantity <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Please specify cargo quantities unloaded at transit point or destination"})
+			return
+		}
+	} else {
+		if input.Quantity <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Quantity must be greater than zero"})
+			return
+		}
 
-	if input.PricingMethod == "lump_sum" && input.LumpSum <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Lump sum amount must be greater than zero"})
-		return
+		if input.PricingMethod != "lump_sum" && input.UnitPrice <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Unit price must be greater than zero"})
+			return
+		}
+
+		if input.PricingMethod == "lump_sum" && input.LumpSum <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Lump sum amount must be greater than zero"})
+			return
+		}
 	}
 
 	userIDStr := c.GetString("userID")
@@ -165,25 +242,80 @@ func (h *TripHandler) CreateTrip(c *gin.Context) {
 		}
 	}
 
-	// Calculate Quantity in Kg
+	// Calculate Quantity in Kg and Gross Revenue
 	var quantityKg float64
-	switch strings.ToLower(input.Unit) {
-	case "ton", "tons":
-		quantityKg = input.Quantity * 1000
-	case "quintal", "quintals":
-		quantityKg = input.Quantity * 100
-	case "kg", "kilogram":
-		quantityKg = input.Quantity
-	default:
-		quantityKg = input.Quantity * 1000 // default assume tons
-	}
-
-	// Calculate Gross Revenue
 	var grossRevenue float64
-	if input.PricingMethod == "lump_sum" {
-		grossRevenue = input.LumpSum
+	var transitRevenue float64
+	var destinationRevenue float64
+
+	if isSplit {
+		if input.TransitUnit == "" {
+			input.TransitUnit = "ton"
+		}
+		if input.DestinationUnit == "" {
+			input.DestinationUnit = "ton"
+		}
+		if input.TransitPricingMethod == "" {
+			input.TransitPricingMethod = "per_ton"
+		}
+		if input.DestinationPricingMethod == "" {
+			input.DestinationPricingMethod = "per_ton"
+		}
+
+		transitKg := toKg(input.TransitQuantity, input.TransitUnit)
+		destKg := toKg(input.DestinationQuantity, input.DestinationUnit)
+		quantityKg = transitKg + destKg
+
+		normT := normalizeUnit(input.TransitUnit)
+		normD := normalizeUnit(input.DestinationUnit)
+		if input.Unit == "" {
+			if normT == normD {
+				input.Unit = normT
+			} else {
+				input.Unit = "ton"
+			}
+		} else {
+			input.Unit = normalizeUnit(input.Unit)
+		}
+
+		input.Quantity = calculateUnifiedQuantity(quantityKg, input.Unit)
+		if input.PricingTarget == "" {
+			input.PricingTarget = "split"
+		}
+
+		if input.PricingMethod == "lump_sum" && input.LumpSum > 0 && input.TransitLumpSum <= 0 && input.DestinationLumpSum <= 0 {
+			grossRevenue = input.LumpSum
+		} else {
+			transitRevenue = computeLegRevenue(input.TransitQuantity, input.TransitUnit, input.TransitPricingMethod, input.TransitUnitPrice, input.TransitLumpSum)
+			destinationRevenue = computeLegRevenue(input.DestinationQuantity, input.DestinationUnit, input.DestinationPricingMethod, input.DestinationUnitPrice, input.DestinationLumpSum)
+			grossRevenue = transitRevenue + destinationRevenue
+			if grossRevenue <= 0 && input.LumpSum > 0 {
+				grossRevenue = input.LumpSum
+			}
+		}
+
+		if input.ReceiptNumber == "" {
+			if input.TransitReceiptNumber != "" && input.DestinationReceiptNumber != "" {
+				input.ReceiptNumber = input.TransitReceiptNumber + " / " + input.DestinationReceiptNumber
+			} else if input.TransitReceiptNumber != "" {
+				input.ReceiptNumber = input.TransitReceiptNumber
+			} else {
+				input.ReceiptNumber = input.DestinationReceiptNumber
+			}
+		}
 	} else {
-		grossRevenue = input.Quantity * input.UnitPrice
+		if input.Unit == "" {
+			input.Unit = "ton"
+		} else {
+			input.Unit = normalizeUnit(input.Unit)
+		}
+		quantityKg = toKg(input.Quantity, input.Unit)
+
+		if input.PricingMethod == "lump_sum" {
+			grossRevenue = input.LumpSum
+		} else {
+			grossRevenue = input.Quantity * input.UnitPrice
+		}
 	}
 
 	// Calculate Additional Fees and Net/Total Revenue
@@ -213,43 +345,145 @@ func (h *TripHandler) CreateTrip(c *gin.Context) {
 
 	tripNumber := h.GenerateNextNumber(ctx, "trips", "TR")
 
+	loadingSiteName := input.LoadingSiteName
+	if loadingSiteName == "" && input.LoadingSiteID != "" {
+		if sObjID, err := bson.ObjectIDFromHex(input.LoadingSiteID); err == nil {
+			var s models.Site
+			if err := h.DB.Sites.FindOne(ctx, bson.M{"_id": sObjID}).Decode(&s); err == nil {
+				loadingSiteName = s.Name
+			}
+		}
+	}
+
+	dumpingSiteName := input.DumpingSiteName
+	if dumpingSiteName == "" && input.DumpingSiteID != "" {
+		if sObjID, err := bson.ObjectIDFromHex(input.DumpingSiteID); err == nil {
+			var s models.Site
+			if err := h.DB.Sites.FindOne(ctx, bson.M{"_id": sObjID}).Decode(&s); err == nil {
+				dumpingSiteName = s.Name
+			}
+		}
+	}
+
+	materialName := input.MaterialName
+	if materialName == "" && input.MaterialID != "" {
+		if mObjID, err := bson.ObjectIDFromHex(input.MaterialID); err == nil {
+			var m models.Material
+			if err := h.DB.Materials.FindOne(ctx, bson.M{"_id": mObjID}).Decode(&m); err == nil {
+				materialName = m.Name
+			}
+		}
+	}
+
+	transitionPointName := input.TransitionPointName
+	hasTransition := input.HasTransition || len(input.TransitionPointIDs) > 0 || isSplit
+	if transitionPointName == "" && len(input.TransitionPointIDs) > 0 {
+		var names []string
+		for _, tid := range input.TransitionPointIDs {
+			if tObjID, err := bson.ObjectIDFromHex(tid); err == nil {
+				var s models.Site
+				if err := h.DB.Sites.FindOne(ctx, bson.M{"_id": tObjID}).Decode(&s); err == nil {
+					names = append(names, s.Name)
+				}
+			}
+		}
+		transitionPointName = strings.Join(names, ", ")
+	}
+
+	dropOffLoc := input.DropOffLocation
+	if dropOffLoc == "" {
+		if input.PricingTarget == "transit" && transitionPointName != "" {
+			dropOffLoc = transitionPointName
+		} else if isSplit {
+			dropOffLoc = fmt.Sprintf("%s + %s (Split)", transitionPointName, dumpingSiteName)
+		} else {
+			dropOffLoc = dumpingSiteName
+		}
+	}
+	pricingTarget := input.PricingTarget
+	if pricingTarget == "" {
+		if isSplit {
+			pricingTarget = "split"
+		} else {
+			pricingTarget = "destination"
+		}
+	}
+
+	transitUnitPrice := input.TransitUnitPrice
+	transitLumpSum := input.TransitLumpSum
+	destUnitPrice := input.DestinationUnitPrice
+	destLumpSum := input.DestinationLumpSum
+
+	if !isSplit {
+		if pricingTarget == "transit" {
+			transitUnitPrice = input.UnitPrice
+			transitLumpSum = input.LumpSum
+		} else {
+			destUnitPrice = input.UnitPrice
+			destLumpSum = input.LumpSum
+		}
+	}
+
 	trip := models.Trip{
-		ID:                  bson.NewObjectID(),
-		TripNumber:          tripNumber,
-		DriverID:            driverID,
-		DriverName:          driverName,
-		TruckID:             truckID,
-		TruckPlate:          truckPlate,
-		LoadingSiteID:       input.LoadingSiteID,
-		LoadingSiteName:     input.LoadingSiteName,
-		DumpingSiteID:       input.DumpingSiteID,
-		DumpingSiteName:     input.DumpingSiteName,
-		HasTransition:       input.HasTransition,
-		TransitionPointIDs:  input.TransitionPointIDs,
-		TransitionPointName: input.TransitionPointName,
-		MaterialID:          input.MaterialID,
-		MaterialName:        input.MaterialName,
-		Quantity:            input.Quantity,
-		Unit:                input.Unit,
-		QuantityKg:          quantityKg,
-		PricingMethod:       input.PricingMethod,
-		UnitPrice:           input.UnitPrice,
-		LumpSum:             input.LumpSum,
-		GrossRevenue:        grossRevenue,
-		TotalRevenue:        totalRevenue,
-		AdditionalFees:      validFees,
-		TotalAdditionalFees: totalAdditionalFees,
-		NetRevenue:          netRevenue,
-		StartOdometer:       input.StartOdometer,
-		EndOdometer:         input.EndOdometer,
-		ReceiptNumber:       input.ReceiptNumber,
-		Date:                tripDate,
-		Status:              "completed",
-		PaymentStatus:       "pending",
-		PaidAmount:          0,
-		Notes:               input.Notes,
-		CreatedAt:           time.Now(),
-		UpdatedAt:           time.Now(),
+		ID:                       bson.NewObjectID(),
+		TripNumber:               tripNumber,
+		DriverID:                 driverID,
+		DriverName:               driverName,
+		TruckID:                  truckID,
+		TruckPlate:               truckPlate,
+		LoadingSiteID:            input.LoadingSiteID,
+		LoadingSiteName:          loadingSiteName,
+		DumpingSiteID:            input.DumpingSiteID,
+		DumpingSiteName:          dumpingSiteName,
+		HasTransition:            hasTransition,
+		TransitionPointIDs:       input.TransitionPointIDs,
+		TransitionPointName:      transitionPointName,
+		MaterialID:               input.MaterialID,
+		MaterialName:             materialName,
+		Quantity:                 input.Quantity,
+		Unit:                     input.Unit,
+		QuantityKg:               quantityKg,
+		PricingMethod:            input.PricingMethod,
+		UnitPrice:                input.UnitPrice,
+		PricingTarget:            pricingTarget,
+		DropOffLocation:          dropOffLoc,
+		TransitNotes:             input.TransitNotes,
+		TransitUnitPrice:         transitUnitPrice,
+		TransitUnitPriceSplit:    transitUnitPrice,
+		DestinationUnitPrice:     destUnitPrice,
+		DestinationUnitPriceSplit: destUnitPrice,
+		PriceDifference:          input.PriceDifference,
+		LumpSum:                  input.LumpSum,
+		IsSplitDrop:              isSplit,
+		TransitQuantity:          input.TransitQuantity,
+		TransitUnit:              input.TransitUnit,
+		TransitQuantityKg:        toKg(input.TransitQuantity, input.TransitUnit),
+		TransitPricingMethod:     input.TransitPricingMethod,
+		TransitLumpSum:           transitLumpSum,
+		TransitRevenue:           transitRevenue,
+		TransitReceiptNumber:     input.TransitReceiptNumber,
+		DestinationQuantity:      input.DestinationQuantity,
+		DestinationUnit:          input.DestinationUnit,
+		DestinationQuantityKg:    toKg(input.DestinationQuantity, input.DestinationUnit),
+		DestinationPricingMethod: input.DestinationPricingMethod,
+		DestinationLumpSum:       destLumpSum,
+		DestinationRevenue:       destinationRevenue,
+		DestinationReceiptNumber: input.DestinationReceiptNumber,
+		GrossRevenue:             grossRevenue,
+		TotalRevenue:             totalRevenue,
+		AdditionalFees:           validFees,
+		TotalAdditionalFees:      totalAdditionalFees,
+		NetRevenue:               netRevenue,
+		StartOdometer:            input.StartOdometer,
+		EndOdometer:              input.EndOdometer,
+		ReceiptNumber:            input.ReceiptNumber,
+		Date:                     tripDate,
+		Status:                   "completed",
+		PaymentStatus:            "pending",
+		PaidAmount:               0,
+		Notes:                    input.Notes,
+		CreatedAt:                time.Now(),
+		UpdatedAt:                time.Now(),
 	}
 	if input.Status != "" {
 		trip.Status = input.Status
@@ -401,21 +635,41 @@ func (h *TripHandler) GetRecentTrip(c *gin.Context) {
 }
 
 type StartTripInput struct {
-	TruckID             string  `json:"truck_id"`
-	TruckPlate          string  `json:"truck_plate"`
-	DriverID            string  `json:"driver_id"`
-	DriverName          string  `json:"driver_name"`
-	StartOdometer       float64 `json:"start_odometer" binding:"required"`
-	LoadingSiteID       string  `json:"loading_site_id" binding:"required"`
-	LoadingSiteName     string  `json:"loading_site_name"`
-	DumpingSiteID       string  `json:"dumping_site_id" binding:"required"`
-	DumpingSiteName     string  `json:"dumping_site_name"`
-	MaterialID          string  `json:"material_id" binding:"required"`
-	MaterialName        string  `json:"material_name"`
-	HasTransition       bool    `json:"has_transition"`
-	TransitionPointIDs  []string`json:"transition_point_ids"`
-	TransitionPointName string  `json:"transition_point_name"`
-	Date                string  `json:"date"`
+	TruckID                  string   `json:"truck_id"`
+	TruckPlate               string   `json:"truck_plate"`
+	DriverID                 string   `json:"driver_id"`
+	DriverName               string   `json:"driver_name"`
+	StartOdometer            float64  `json:"start_odometer" binding:"required"`
+	LoadingSiteID            string   `json:"loading_site_id" binding:"required"`
+	LoadingSiteName          string   `json:"loading_site_name"`
+	DumpingSiteID            string   `json:"dumping_site_id" binding:"required"`
+	DumpingSiteName          string   `json:"dumping_site_name"`
+	MaterialID               string   `json:"material_id" binding:"required"`
+	MaterialName             string   `json:"material_name"`
+	HasTransition            bool     `json:"has_transition"`
+	TransitionPointIDs       []string `json:"transition_point_ids"`
+	TransitionPointName      string   `json:"transition_point_name"`
+	PricingTarget            string   `json:"pricing_target"`
+	PricingMethod            string   `json:"pricing_method"`
+	UnitPrice                float64  `json:"unit_price"`
+	TransitUnitPrice         float64  `json:"transit_unit_price"`
+	DestinationUnitPrice     float64  `json:"destination_unit_price"`
+	PriceDifference          float64  `json:"price_difference"`
+	LumpSum                  float64  `json:"lump_sum"`
+	IsSplitDrop              bool     `json:"is_split_drop"`
+	TransitQuantity          float64  `json:"transit_quantity"`
+	TransitUnit              string   `json:"transit_unit"`
+	TransitPricingMethod     string   `json:"transit_pricing_method"`
+	TransitLumpSum           float64  `json:"transit_lump_sum"`
+	DestinationQuantity      float64  `json:"destination_quantity"`
+	DestinationUnit          string   `json:"destination_unit"`
+	DestinationPricingMethod string   `json:"destination_pricing_method"`
+	DestinationLumpSum       float64  `json:"destination_lump_sum"`
+	CargoWeight              float64  `json:"cargo_weight"`
+	WeightTicketNumber       string   `json:"weight_ticket_number"`
+	DropOffLocation          string   `json:"drop_off_location"`
+	TransitNotes             string   `json:"transit_notes"`
+	Date                     string   `json:"date"`
 }
 
 func (h *TripHandler) StartTrip(c *gin.Context) {
@@ -507,6 +761,51 @@ func (h *TripHandler) StartTrip(c *gin.Context) {
 	now := time.Now()
 	tripNumber := h.GenerateNextNumber(ctx, "trips", "TR")
 
+	loadingSiteName := input.LoadingSiteName
+	if loadingSiteName == "" && input.LoadingSiteID != "" {
+		if sObjID, err := bson.ObjectIDFromHex(input.LoadingSiteID); err == nil {
+			var s models.Site
+			if err := h.DB.Sites.FindOne(ctx, bson.M{"_id": sObjID}).Decode(&s); err == nil {
+				loadingSiteName = s.Name
+			}
+		}
+	}
+
+	dumpingSiteName := input.DumpingSiteName
+	if dumpingSiteName == "" && input.DumpingSiteID != "" {
+		if sObjID, err := bson.ObjectIDFromHex(input.DumpingSiteID); err == nil {
+			var s models.Site
+			if err := h.DB.Sites.FindOne(ctx, bson.M{"_id": sObjID}).Decode(&s); err == nil {
+				dumpingSiteName = s.Name
+			}
+		}
+	}
+
+	materialName := input.MaterialName
+	if materialName == "" && input.MaterialID != "" {
+		if mObjID, err := bson.ObjectIDFromHex(input.MaterialID); err == nil {
+			var m models.Material
+			if err := h.DB.Materials.FindOne(ctx, bson.M{"_id": mObjID}).Decode(&m); err == nil {
+				materialName = m.Name
+			}
+		}
+	}
+
+	transitionPointName := strings.TrimSpace(input.TransitionPointName)
+	hasTransition := input.HasTransition || len(input.TransitionPointIDs) > 0 || transitionPointName != ""
+	if transitionPointName == "" && len(input.TransitionPointIDs) > 0 {
+		var names []string
+		for _, tid := range input.TransitionPointIDs {
+			if tObjID, err := bson.ObjectIDFromHex(tid); err == nil {
+				var s models.Site
+				if err := h.DB.Sites.FindOne(ctx, bson.M{"_id": tObjID}).Decode(&s); err == nil {
+					names = append(names, s.Name)
+				}
+			}
+		}
+		transitionPointName = strings.Join(names, ", ")
+	}
+
 	trip := models.Trip{
 		ID:                  bson.NewObjectID(),
 		TripNumber:          tripNumber,
@@ -515,16 +814,34 @@ func (h *TripHandler) StartTrip(c *gin.Context) {
 		TruckID:             truckID,
 		TruckPlate:          truckPlate,
 		LoadingSiteID:       input.LoadingSiteID,
-		LoadingSiteName:     input.LoadingSiteName,
+		LoadingSiteName:     loadingSiteName,
 		DumpingSiteID:       input.DumpingSiteID,
-		DumpingSiteName:     input.DumpingSiteName,
-		HasTransition:       input.HasTransition,
+		DumpingSiteName:     dumpingSiteName,
+		HasTransition:       hasTransition,
 		TransitionPointIDs:  input.TransitionPointIDs,
-		TransitionPointName: input.TransitionPointName,
-		MaterialID:          input.MaterialID,
-		MaterialName:        input.MaterialName,
-		StartOdometer:       input.StartOdometer,
-		Status:              "in_progress",
+		TransitionPointName: transitionPointName,
+		MaterialID:           input.MaterialID,
+		MaterialName:         materialName,
+		PricingTarget:        input.PricingTarget,
+		DropOffLocation:      input.DropOffLocation,
+		TransitNotes:         input.TransitNotes,
+		PricingMethod:        input.PricingMethod,
+		UnitPrice:            input.UnitPrice,
+		TransitUnitPrice:         input.TransitUnitPrice,
+		DestinationUnitPrice:     input.DestinationUnitPrice,
+		PriceDifference:          input.PriceDifference,
+		LumpSum:                  input.LumpSum,
+		IsSplitDrop:              input.IsSplitDrop,
+		TransitQuantity:          input.TransitQuantity,
+		TransitUnit:              input.TransitUnit,
+		TransitPricingMethod:     input.TransitPricingMethod,
+		TransitLumpSum:           input.TransitLumpSum,
+		DestinationQuantity:      input.DestinationQuantity,
+		DestinationUnit:          input.DestinationUnit,
+		DestinationPricingMethod: input.DestinationPricingMethod,
+		DestinationLumpSum:       input.DestinationLumpSum,
+		StartOdometer:            input.StartOdometer,
+		Status:                   "in_progress",
 		PaymentStatus:       "pending",
 		PaidAmount:          0,
 		StartedAt:           &now,
@@ -585,16 +902,37 @@ func (h *TripHandler) StartTrip(c *gin.Context) {
 }
 
 type CompleteTripInput struct {
-	TripID              string           `json:"trip_id"`
-	ReceiptNumber       string           `json:"receipt_number" binding:"required"`
-	Quantity            float64          `json:"quantity" binding:"required"`
-	Unit                string           `json:"unit" binding:"required"`
-	PricingMethod       string           `json:"pricing_method" binding:"required"`
-	UnitPrice           float64          `json:"unit_price"`
-	LumpSum             float64          `json:"lump_sum"`
-	AdditionalFees      []models.TripFee `json:"additional_fees"`
-	Notes               string           `json:"notes"`
-	EndOdometer         float64          `json:"end_odometer"`
+	TripID                   string           `json:"trip_id"`
+	ReceiptNumber            string           `json:"receipt_number"`
+	Quantity                 float64          `json:"quantity"`
+	Unit                     string           `json:"unit"`
+	PricingMethod            string           `json:"pricing_method"`
+	UnitPrice                float64          `json:"unit_price"`
+	PricingTarget            string           `json:"pricing_target"`
+	TransitUnitPrice          float64          `json:"transit_unit_price"`
+	TransitUnitPriceSplit     float64          `json:"transit_unit_price_split"`
+	DestinationUnitPrice      float64          `json:"destination_unit_price"`
+	DestinationUnitPriceSplit float64          `json:"destination_unit_price_split"`
+	PriceDifference          float64          `json:"price_difference"`
+	LumpSum                  float64          `json:"lump_sum"`
+	IsSplitDrop              bool             `json:"is_split_drop"`
+	TransitQuantity          float64          `json:"transit_quantity"`
+	TransitUnit              string           `json:"transit_unit"`
+	TransitPricingMethod     string           `json:"transit_pricing_method"`
+	TransitLumpSum           float64          `json:"transit_lump_sum"`
+	TransitReceiptNumber     string           `json:"transit_receipt_number"`
+	DestinationQuantity      float64          `json:"destination_quantity"`
+	DestinationUnit          string           `json:"destination_unit"`
+	DestinationPricingMethod string           `json:"destination_pricing_method"`
+	DestinationLumpSum       float64          `json:"destination_lump_sum"`
+	DestinationReceiptNumber string           `json:"destination_receipt_number"`
+	AdditionalFees           []models.TripFee `json:"additional_fees"`
+	DropOffLocation          string           `json:"drop_off_location"`
+	TransitNotes             string           `json:"transit_notes"`
+	TransitionPointName      string           `json:"transition_point_name"`
+	HasTransition            bool             `json:"has_transition"`
+	Notes                    string           `json:"notes"`
+	EndOdometer              float64          `json:"end_odometer"`
 }
 
 func (h *TripHandler) CompleteTrip(c *gin.Context) {
@@ -603,6 +941,13 @@ func (h *TripHandler) CompleteTrip(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Please provide required trip completion data: " + err.Error()})
 		return
+	}
+
+	if input.TransitUnitPrice <= 0 && input.TransitUnitPriceSplit > 0 {
+		input.TransitUnitPrice = input.TransitUnitPriceSplit
+	}
+	if input.DestinationUnitPrice <= 0 && input.DestinationUnitPriceSplit > 0 {
+		input.DestinationUnitPrice = input.DestinationUnitPriceSplit
 	}
 
 	if tripID == "" {
@@ -631,38 +976,121 @@ func (h *TripHandler) CompleteTrip(c *gin.Context) {
 		return
 	}
 
-	if input.Quantity <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Quantity must be greater than zero"})
-		return
+	if input.TransitUnitPrice <= 0 && existingTrip.TransitUnitPrice > 0 {
+		input.TransitUnitPrice = existingTrip.TransitUnitPrice
+	}
+	if input.DestinationUnitPrice <= 0 && existingTrip.DestinationUnitPrice > 0 {
+		input.DestinationUnitPrice = existingTrip.DestinationUnitPrice
+	}
+	if input.TransitPricingMethod == "" && existingTrip.TransitPricingMethod != "" {
+		input.TransitPricingMethod = existingTrip.TransitPricingMethod
+	}
+	if input.DestinationPricingMethod == "" && existingTrip.DestinationPricingMethod != "" {
+		input.DestinationPricingMethod = existingTrip.DestinationPricingMethod
+	}
+	if input.TransitLumpSum <= 0 && existingTrip.TransitLumpSum > 0 {
+		input.TransitLumpSum = existingTrip.TransitLumpSum
+	}
+	if input.DestinationLumpSum <= 0 && existingTrip.DestinationLumpSum > 0 {
+		input.DestinationLumpSum = existingTrip.DestinationLumpSum
 	}
 
-	if input.PricingMethod != "lump_sum" && input.UnitPrice <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Unit price must be greater than zero"})
-		return
-	}
+	isSplit := input.IsSplitDrop && (input.TransitQuantity > 0 || input.DestinationQuantity > 0)
+	if isSplit {
+		if input.TransitQuantity <= 0 && input.DestinationQuantity <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Please specify cargo quantities unloaded at transit point or destination"})
+			return
+		}
+	} else {
+		if input.Quantity <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Quantity must be greater than zero"})
+			return
+		}
 
-	if input.PricingMethod == "lump_sum" && input.LumpSum <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Lump sum amount must be greater than zero"})
-		return
+		if input.PricingMethod != "lump_sum" && input.UnitPrice <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Unit price must be greater than zero"})
+			return
+		}
+
+		if input.PricingMethod == "lump_sum" && input.LumpSum <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Lump sum amount must be greater than zero"})
+			return
+		}
 	}
 
 	var quantityKg float64
-	switch strings.ToLower(input.Unit) {
-	case "ton", "tons":
-		quantityKg = input.Quantity * 1000
-	case "quintal", "quintals":
-		quantityKg = input.Quantity * 100
-	case "kg", "kilogram":
-		quantityKg = input.Quantity
-	default:
-		quantityKg = input.Quantity * 1000
-	}
-
 	var grossRevenue float64
-	if input.PricingMethod == "lump_sum" {
-		grossRevenue = input.LumpSum
+	var transitRevenue float64
+	var destinationRevenue float64
+
+	if isSplit {
+		if input.TransitUnit == "" {
+			input.TransitUnit = "ton"
+		}
+		if input.DestinationUnit == "" {
+			input.DestinationUnit = "ton"
+		}
+		if input.TransitPricingMethod == "" {
+			input.TransitPricingMethod = "per_ton"
+		}
+		if input.DestinationPricingMethod == "" {
+			input.DestinationPricingMethod = "per_ton"
+		}
+
+		transitKg := toKg(input.TransitQuantity, input.TransitUnit)
+		destKg := toKg(input.DestinationQuantity, input.DestinationUnit)
+		quantityKg = transitKg + destKg
+
+		normT := normalizeUnit(input.TransitUnit)
+		normD := normalizeUnit(input.DestinationUnit)
+		if input.Unit == "" {
+			if normT == normD {
+				input.Unit = normT
+			} else {
+				input.Unit = "ton"
+			}
+		} else {
+			input.Unit = normalizeUnit(input.Unit)
+		}
+
+		input.Quantity = calculateUnifiedQuantity(quantityKg, input.Unit)
+		if input.PricingTarget == "" {
+			input.PricingTarget = "split"
+		}
+
+		if input.PricingMethod == "lump_sum" && input.LumpSum > 0 && input.TransitLumpSum <= 0 && input.DestinationLumpSum <= 0 {
+			grossRevenue = input.LumpSum
+		} else {
+			transitRevenue = computeLegRevenue(input.TransitQuantity, input.TransitUnit, input.TransitPricingMethod, input.TransitUnitPrice, input.TransitLumpSum)
+			destinationRevenue = computeLegRevenue(input.DestinationQuantity, input.DestinationUnit, input.DestinationPricingMethod, input.DestinationUnitPrice, input.DestinationLumpSum)
+			grossRevenue = transitRevenue + destinationRevenue
+			if grossRevenue <= 0 && input.LumpSum > 0 {
+				grossRevenue = input.LumpSum
+			}
+		}
+
+		if input.ReceiptNumber == "" {
+			if input.TransitReceiptNumber != "" && input.DestinationReceiptNumber != "" {
+				input.ReceiptNumber = input.TransitReceiptNumber + " / " + input.DestinationReceiptNumber
+			} else if input.TransitReceiptNumber != "" {
+				input.ReceiptNumber = input.TransitReceiptNumber
+			} else {
+				input.ReceiptNumber = input.DestinationReceiptNumber
+			}
+		}
 	} else {
-		grossRevenue = input.Quantity * input.UnitPrice
+		if input.Unit == "" {
+			input.Unit = "ton"
+		} else {
+			input.Unit = normalizeUnit(input.Unit)
+		}
+		quantityKg = toKg(input.Quantity, input.Unit)
+
+		if input.PricingMethod == "lump_sum" {
+			grossRevenue = input.LumpSum
+		} else {
+			grossRevenue = input.Quantity * input.UnitPrice
+		}
 	}
 
 	var totalAdditionalFees float64
@@ -683,22 +1111,91 @@ func (h *TripHandler) CompleteTrip(c *gin.Context) {
 
 	now := time.Now()
 
+	dropOffLoc := input.DropOffLocation
+	if dropOffLoc == "" {
+		if input.PricingTarget == "transit" && existingTrip.TransitionPointName != "" {
+			dropOffLoc = existingTrip.TransitionPointName
+		} else if isSplit {
+			dropOffLoc = fmt.Sprintf("%s + %s (Split)", existingTrip.TransitionPointName, existingTrip.DumpingSiteName)
+		} else if existingTrip.DropOffLocation != "" {
+			dropOffLoc = existingTrip.DropOffLocation
+		} else {
+			dropOffLoc = existingTrip.DumpingSiteName
+		}
+	}
+	pricingTarget := input.PricingTarget
+	if pricingTarget == "" {
+		if isSplit {
+			pricingTarget = "split"
+		} else if existingTrip.PricingTarget != "" {
+			pricingTarget = existingTrip.PricingTarget
+		} else {
+			pricingTarget = "destination"
+		}
+	}
+
+	transitUnitPrice := input.TransitUnitPrice
+	transitLumpSum := input.TransitLumpSum
+	destUnitPrice := input.DestinationUnitPrice
+	destLumpSum := input.DestinationLumpSum
+
+	if !isSplit {
+		if pricingTarget == "transit" {
+			transitUnitPrice = input.UnitPrice
+			transitLumpSum = input.LumpSum
+		} else {
+			destUnitPrice = input.UnitPrice
+			destLumpSum = input.LumpSum
+		}
+	}
+
 	updateFields := bson.M{
-		"receipt_number":        input.ReceiptNumber,
-		"quantity":              input.Quantity,
-		"unit":                  input.Unit,
-		"quantity_kg":           quantityKg,
-		"pricing_method":        input.PricingMethod,
-		"unit_price":            input.UnitPrice,
-		"lump_sum":              input.LumpSum,
-		"gross_revenue":         grossRevenue,
-		"total_revenue":         totalRevenue,
-		"additional_fees":       validFees,
-		"total_additional_fees": totalAdditionalFees,
-		"net_revenue":           netRevenue,
-		"status":                "completed",
-		"completed_at":          now,
-		"updated_at":            now,
+		"receipt_number":             input.ReceiptNumber,
+		"quantity":                   input.Quantity,
+		"unit":                       input.Unit,
+		"quantity_kg":                quantityKg,
+		"pricing_method":             input.PricingMethod,
+		"unit_price":                 input.UnitPrice,
+		"pricing_target":             pricingTarget,
+		"drop_off_location":          dropOffLoc,
+		"transit_notes":              input.TransitNotes,
+		"transit_unit_price":         transitUnitPrice,
+		"transit_unit_price_split":   transitUnitPrice,
+		"destination_unit_price":     destUnitPrice,
+		"destination_unit_price_split": destUnitPrice,
+		"price_difference":           input.PriceDifference,
+		"lump_sum":                   input.LumpSum,
+		"is_split_drop":              isSplit,
+		"transit_quantity":           input.TransitQuantity,
+		"transit_unit":               input.TransitUnit,
+		"transit_quantity_kg":        toKg(input.TransitQuantity, input.TransitUnit),
+		"transit_pricing_method":     input.TransitPricingMethod,
+		"transit_lump_sum":           transitLumpSum,
+		"transit_revenue":            transitRevenue,
+		"transit_receipt_number":     input.TransitReceiptNumber,
+		"destination_quantity":       input.DestinationQuantity,
+		"destination_unit":           input.DestinationUnit,
+		"destination_quantity_kg":    toKg(input.DestinationQuantity, input.DestinationUnit),
+		"destination_pricing_method": input.DestinationPricingMethod,
+		"destination_lump_sum":       destLumpSum,
+		"destination_revenue":        destinationRevenue,
+		"destination_receipt_number": input.DestinationReceiptNumber,
+		"gross_revenue":              grossRevenue,
+		"total_revenue":              totalRevenue,
+		"additional_fees":            validFees,
+		"total_additional_fees":      totalAdditionalFees,
+		"net_revenue":                netRevenue,
+		"status":                     "completed",
+		"completed_at":               now,
+		"updated_at":                 now,
+	}
+
+	if isSplit {
+		updateFields["has_transition"] = true
+	}
+	if strings.TrimSpace(input.TransitionPointName) != "" {
+		updateFields["transition_point_name"] = strings.TrimSpace(input.TransitionPointName)
+		updateFields["has_transition"] = true
 	}
 
 	if existingTrip.PaymentStatus != "paid" {
@@ -866,6 +1363,10 @@ func (h *TripHandler) GetActiveTrip(c *gin.Context) {
 func (h *TripHandler) GetSmartRoutePrice(c *gin.Context) {
 	loadingSiteID := c.Query("loading_site_id")
 	dumpingSiteID := c.Query("dumping_site_id")
+	transitPointID := c.Query("transit_point_id")
+	if transitPointID == "" {
+		transitPointID = c.Query("transition_point_id")
+	}
 	materialID := c.Query("material_id")
 
 	if loadingSiteID == "" || dumpingSiteID == "" {
@@ -876,77 +1377,269 @@ func (h *TripHandler) GetSmartRoutePrice(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 1. Check configured routes table
-	routeFilter := bson.M{
-		"loading_site_id": loadingSiteID,
-		"dumping_site_id": dumpingSiteID,
-	}
-	if materialID != "" {
-		routeFilter["material_id"] = materialID
-	}
-
-	var route models.Route
-	if err := h.DB.Routes.FindOne(ctx, routeFilter).Decode(&route); err == nil && route.DefaultPrice > 0 {
-		c.JSON(http.StatusOK, gin.H{
-			"source":         "configured_route",
-			"price":          route.DefaultPrice,
-			"pricing_method": route.PricingMethod,
-			"material_id":    route.MaterialID,
-			"material_name":  route.MaterialName,
-		})
-		return
-	}
-
-	// 2. Check previous trips
-	tripFilter := bson.M{
-		"loading_site_id": loadingSiteID,
-		"dumping_site_id": dumpingSiteID,
-		"status":          "completed",
-	}
-	if materialID != "" {
-		tripFilter["material_id"] = materialID
-	}
-
-	findOpts := options.FindOne().SetSort(bson.D{{Key: "created_at", Value: -1}})
-	var lastTrip models.Trip
-	if err := h.DB.Trips.FindOne(ctx, tripFilter, findOpts).Decode(&lastTrip); err == nil {
-		price := lastTrip.UnitPrice
-		if lastTrip.PricingMethod == "lump_sum" {
-			price = lastTrip.LumpSum
+	toPerKg := func(price float64, method string) float64 {
+		switch method {
+		case "per_ton":
+			return price / 1000.0
+		case "per_quintal":
+			return price / 100.0
+		case "per_kg":
+			return price
+		default:
+			return price / 1000.0
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"source":         "previous_trip",
-			"price":          price,
-			"pricing_method": lastTrip.PricingMethod,
-			"material_id":    lastTrip.MaterialID,
-			"material_name":  lastTrip.MaterialName,
-			"unit":           lastTrip.Unit,
-		})
-		return
 	}
 
-	// 3. Fallback to material default price
+	toPerTon := func(price float64, method string) float64 {
+		switch method {
+		case "per_kg":
+			return price * 1000.0
+		case "per_quintal":
+			return price * 10.0
+		case "per_ton":
+			return price
+		default:
+			return price
+		}
+	}
+
+	var destinationPrice float64
+	destinationMethod := "per_ton"
+	source := "none"
+
+	// 1. Check configured route for Loading -> Dumping (Final Destination)
+	destRouteFilter := bson.M{
+		"loading_site_id": loadingSiteID,
+		"dumping_site_id": dumpingSiteID,
+	}
 	if materialID != "" {
-		matObjID, err := bson.ObjectIDFromHex(materialID)
-		if err == nil {
-			var mat models.Material
-			if err := h.DB.Materials.FindOne(ctx, bson.M{"_id": matObjID}).Decode(&mat); err == nil {
-				c.JSON(http.StatusOK, gin.H{
-					"source":         "material_default",
-					"price":          mat.DefaultPrice,
-					"pricing_method": "per_ton",
-					"material_id":    mat.ID.Hex(),
-					"material_name":  mat.Name,
-					"unit":           mat.DefaultUnit,
-				})
-				return
+		destRouteFilter["material_id"] = materialID
+	}
+	var destRoute models.Route
+	if err := h.DB.Routes.FindOne(ctx, destRouteFilter).Decode(&destRoute); err == nil && destRoute.DefaultPrice > 0 {
+		destinationPrice = destRoute.DefaultPrice
+		if destRoute.PricingMethod != "" {
+			destinationMethod = destRoute.PricingMethod
+		}
+		source = "configured_route"
+	}
+
+	// 2. Check previous trips for Loading -> Dumping
+	if destinationPrice == 0 {
+		tripFilter := bson.M{
+			"loading_site_id": loadingSiteID,
+			"dumping_site_id": dumpingSiteID,
+			"status":          "completed",
+		}
+		if materialID != "" {
+			tripFilter["material_id"] = materialID
+		}
+		findOpts := options.FindOne().SetSort(bson.D{{Key: "created_at", Value: -1}})
+		var lastTrip models.Trip
+		if err := h.DB.Trips.FindOne(ctx, tripFilter, findOpts).Decode(&lastTrip); err == nil {
+			price := lastTrip.UnitPrice
+			if lastTrip.PricingMethod == "lump_sum" {
+				price = lastTrip.LumpSum
+			}
+			if price > 0 {
+				destinationPrice = price
+				if lastTrip.PricingMethod != "" {
+					destinationMethod = lastTrip.PricingMethod
+				}
+				source = "previous_trip"
 			}
 		}
 	}
 
+	// 3. Fallback to material default price or system settings destination rates
+	var sysSettings models.Settings
+	_ = h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&sysSettings)
+
+	if destinationPrice == 0 && materialID != "" {
+		matObjID, err := bson.ObjectIDFromHex(materialID)
+		if err == nil {
+			var mat models.Material
+			if err := h.DB.Materials.FindOne(ctx, bson.M{"_id": matObjID}).Decode(&mat); err == nil && mat.DefaultPrice > 0 {
+				destinationPrice = mat.DefaultPrice
+				destinationMethod = "per_ton"
+				source = "material_default"
+			}
+		}
+	}
+
+	if destinationPrice == 0 && len(sysSettings.DestinationRateSuggestions) > 0 {
+		var dumpingSite models.Site
+		if dObjID, err := bson.ObjectIDFromHex(dumpingSiteID); err == nil {
+			_ = h.DB.Sites.FindOne(ctx, bson.M{"_id": dObjID}).Decode(&dumpingSite)
+		}
+		for _, ds := range sysSettings.DestinationRateSuggestions {
+			if ds.ID == dumpingSiteID || (dumpingSite.Name != "" && strings.EqualFold(ds.Name, dumpingSite.Name)) {
+				if ds.SuggestedRatePerTon > 0 {
+					destinationPrice = ds.SuggestedRatePerTon
+					destinationMethod = "per_ton"
+					source = "system_settings_destination"
+					break
+				} else if ds.SuggestedLumpSum > 0 {
+					destinationPrice = ds.SuggestedLumpSum
+					destinationMethod = "lump_sum"
+					source = "system_settings_destination"
+					break
+				}
+			}
+		}
+	}
+
+	// 4. If Transit Point is present, check route/pricing for Loading -> Transit Point
+	var transitPrice float64
+	transitMethod := destinationMethod
+	hasTransitPrice := false
+	var configuredTransitLumpSum float64
+	var configuredDestLumpSum float64
+
+	if destRoute.TransitPrice > 0 {
+		transitPrice = destRoute.TransitPrice
+		if destRoute.TransitPricingMethod != "" {
+			transitMethod = destRoute.TransitPricingMethod
+		}
+		hasTransitPrice = true
+	}
+	if destRoute.TransitLumpSum > 0 {
+		configuredTransitLumpSum = destRoute.TransitLumpSum
+	}
+	if destRoute.LumpSum > 0 {
+		configuredDestLumpSum = destRoute.LumpSum
+	}
+
+	if transitPointID != "" && !hasTransitPrice {
+		transitRouteFilter := bson.M{
+			"loading_site_id": loadingSiteID,
+			"$or": []bson.M{
+				{"dumping_site_id": transitPointID},
+				{"transition_point_ids": transitPointID},
+			},
+		}
+		if materialID != "" {
+			transitRouteFilter["material_id"] = materialID
+		}
+		var transitRoute models.Route
+		if err := h.DB.Routes.FindOne(ctx, transitRouteFilter).Decode(&transitRoute); err == nil && transitRoute.DefaultPrice > 0 {
+			transitPrice = transitRoute.DefaultPrice
+			if transitRoute.PricingMethod != "" {
+				transitMethod = transitRoute.PricingMethod
+			}
+			if transitRoute.LumpSum > 0 {
+				configuredTransitLumpSum = transitRoute.LumpSum
+			}
+			hasTransitPrice = true
+		}
+
+		if !hasTransitPrice {
+			prevTransitFilter := bson.M{
+				"loading_site_id": loadingSiteID,
+				"$or": []bson.M{
+					{"dumping_site_id": transitPointID},
+					{"transition_point_ids": transitPointID},
+				},
+				"status": "completed",
+			}
+			if materialID != "" {
+				prevTransitFilter["material_id"] = materialID
+			}
+			findOpts := options.FindOne().SetSort(bson.D{{Key: "created_at", Value: -1}})
+			var lastTransitTrip models.Trip
+			if err := h.DB.Trips.FindOne(ctx, prevTransitFilter, findOpts).Decode(&lastTransitTrip); err == nil {
+				if lastTransitTrip.TransitUnitPrice > 0 {
+					transitPrice = lastTransitTrip.TransitUnitPrice
+					hasTransitPrice = true
+				} else if lastTransitTrip.UnitPrice > 0 && (lastTransitTrip.DumpingSiteID == transitPointID || lastTransitTrip.PricingTarget == "transit") {
+					transitPrice = lastTransitTrip.UnitPrice
+					if lastTransitTrip.PricingMethod != "" {
+						transitMethod = lastTransitTrip.PricingMethod
+					}
+					hasTransitPrice = true
+				}
+				if lastTransitTrip.TransitLumpSum > 0 {
+					configuredTransitLumpSum = lastTransitTrip.TransitLumpSum
+				}
+			}
+		}
+
+		// Fallback to System Settings Transit Point Suggestions
+		if !hasTransitPrice && len(sysSettings.TransitPointSuggestions) > 0 {
+			var tpSite models.Site
+			if tpObjID, err := bson.ObjectIDFromHex(transitPointID); err == nil {
+				_ = h.DB.Sites.FindOne(ctx, bson.M{"_id": tpObjID}).Decode(&tpSite)
+			}
+			for _, ts := range sysSettings.TransitPointSuggestions {
+				if ts.ID == transitPointID || (tpSite.Name != "" && strings.EqualFold(ts.Name, tpSite.Name)) {
+					if ts.SuggestedRatePerTon > 0 {
+						transitPrice = ts.SuggestedRatePerTon
+						transitMethod = "per_ton"
+						hasTransitPrice = true
+					}
+					if ts.SuggestedLumpSum > 0 {
+						configuredTransitLumpSum = ts.SuggestedLumpSum
+					}
+					break
+				}
+			}
+		}
+	}
+
+	destPerKg := toPerKg(destinationPrice, destinationMethod)
+	transitPerKg := toPerKg(transitPrice, transitMethod)
+	diffPerKg := destPerKg - transitPerKg
+
+	destPerTon := toPerTon(destinationPrice, destinationMethod)
+	transitPerTon := toPerTon(transitPrice, transitMethod)
+	diffPerTon := destPerTon - transitPerTon
+
+	destPerQuintal := destPerTon / 10.0
+	transitPerQuintal := transitPerTon / 10.0
+	diffPerQuintal := destPerQuintal - transitPerQuintal
+
+	destLumpSum := configuredDestLumpSum
+	if destLumpSum == 0 {
+		if destinationMethod == "lump_sum" {
+			destLumpSum = destinationPrice
+		} else if destPerTon > 0 {
+			destLumpSum = destPerTon * 25.0
+		}
+	}
+
+	transitLumpSum := configuredTransitLumpSum
+	if transitLumpSum == 0 {
+		if transitMethod == "lump_sum" {
+			transitLumpSum = transitPrice
+		} else if transitPerTon > 0 {
+			transitLumpSum = transitPerTon * 25.0
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"source": "none",
-		"price":  0,
+		"source":                        source,
+		"price":                         destinationPrice,
+		"pricing_method":                destinationMethod,
+		"destination_price":             destinationPrice,
+		"destination_pricing_method":    destinationMethod,
+		"destination_price_per_kg":      destPerKg,
+		"destination_price_per_quintal": destPerQuintal,
+		"destination_price_per_ton":     destPerTon,
+		"destination_lump_sum":          destLumpSum,
+		"has_transit":                   transitPointID != "",
+		"transit_point_id":              transitPointID,
+		"transit_price":                 transitPrice,
+		"transit_pricing_method":        transitMethod,
+		"transit_price_per_kg":          transitPerKg,
+		"transit_price_per_quintal":     transitPerQuintal,
+		"transit_price_per_ton":         transitPerTon,
+		"transit_lump_sum":              transitLumpSum,
+		"has_transit_price":             hasTransitPrice,
+		"price_difference":              diffPerTon,
+		"price_difference_per_kg":       diffPerKg,
+		"price_difference_per_quintal":  diffPerQuintal,
+		"price_difference_per_ton":      diffPerTon,
+		"price_difference_lump_sum":     destLumpSum - transitLumpSum,
 	})
 }
 
@@ -1043,25 +1736,91 @@ func (h *TripHandler) UpdateTrip(c *gin.Context) {
 		return
 	}
 
-	// Calculate Quantity in Kg
-	var quantityKg float64
-	switch strings.ToLower(input.Unit) {
-	case "ton", "tons":
-		quantityKg = input.Quantity * 1000
-	case "quintal", "quintals":
-		quantityKg = input.Quantity * 100
-	case "kg", "kilogram":
-		quantityKg = input.Quantity
-	default:
-		quantityKg = input.Quantity * 1000
+	if input.TransitUnitPrice <= 0 && input.TransitUnitPriceSplit > 0 {
+		input.TransitUnitPrice = input.TransitUnitPriceSplit
+	}
+	if input.TransitUnitPrice <= 0 && existing.TransitUnitPrice > 0 {
+		input.TransitUnitPrice = existing.TransitUnitPrice
+	}
+	if input.DestinationUnitPrice <= 0 && input.DestinationUnitPriceSplit > 0 {
+		input.DestinationUnitPrice = input.DestinationUnitPriceSplit
+	}
+	if input.DestinationUnitPrice <= 0 && existing.DestinationUnitPrice > 0 {
+		input.DestinationUnitPrice = existing.DestinationUnitPrice
+	}
+	if input.TransitPricingMethod == "" && existing.TransitPricingMethod != "" {
+		input.TransitPricingMethod = existing.TransitPricingMethod
+	}
+	if input.DestinationPricingMethod == "" && existing.DestinationPricingMethod != "" {
+		input.DestinationPricingMethod = existing.DestinationPricingMethod
+	}
+	if input.TransitLumpSum <= 0 && existing.TransitLumpSum > 0 {
+		input.TransitLumpSum = existing.TransitLumpSum
+	}
+	if input.DestinationLumpSum <= 0 && existing.DestinationLumpSum > 0 {
+		input.DestinationLumpSum = existing.DestinationLumpSum
 	}
 
-	// Calculate Gross Revenue
+	isSplit := input.IsSplitDrop && (input.TransitQuantity > 0 || input.DestinationQuantity > 0)
+	var quantityKg float64
 	var grossRevenue float64
-	if input.PricingMethod == "lump_sum" {
-		grossRevenue = input.LumpSum
+	var transitRev float64
+	var destRev float64
+
+	if isSplit {
+		if input.TransitUnit == "" {
+			input.TransitUnit = "ton"
+		}
+		if input.DestinationUnit == "" {
+			input.DestinationUnit = "ton"
+		}
+		if input.TransitPricingMethod == "" {
+			input.TransitPricingMethod = "per_ton"
+		}
+		if input.DestinationPricingMethod == "" {
+			input.DestinationPricingMethod = "per_ton"
+		}
+
+		transitKg := toKg(input.TransitQuantity, input.TransitUnit)
+		destKg := toKg(input.DestinationQuantity, input.DestinationUnit)
+		quantityKg = transitKg + destKg
+
+		normT := normalizeUnit(input.TransitUnit)
+		normD := normalizeUnit(input.DestinationUnit)
+		if input.Unit == "" {
+			if normT == normD {
+				input.Unit = normT
+			} else {
+				input.Unit = "ton"
+			}
+		} else {
+			input.Unit = normalizeUnit(input.Unit)
+		}
+
+		input.Quantity = calculateUnifiedQuantity(quantityKg, input.Unit)
+
+		if input.PricingMethod == "lump_sum" && input.LumpSum > 0 && input.TransitLumpSum <= 0 && input.DestinationLumpSum <= 0 {
+			grossRevenue = input.LumpSum
+		} else {
+			transitRev = computeLegRevenue(input.TransitQuantity, input.TransitUnit, input.TransitPricingMethod, input.TransitUnitPrice, input.TransitLumpSum)
+			destRev = computeLegRevenue(input.DestinationQuantity, input.DestinationUnit, input.DestinationPricingMethod, input.DestinationUnitPrice, input.DestinationLumpSum)
+			grossRevenue = transitRev + destRev
+			if grossRevenue <= 0 && input.LumpSum > 0 {
+				grossRevenue = input.LumpSum
+			}
+		}
 	} else {
-		grossRevenue = input.Quantity * input.UnitPrice
+		if input.Unit == "" {
+			input.Unit = "ton"
+		} else {
+			input.Unit = normalizeUnit(input.Unit)
+		}
+		quantityKg = toKg(input.Quantity, input.Unit)
+		if input.PricingMethod == "lump_sum" {
+			grossRevenue = input.LumpSum
+		} else {
+			grossRevenue = input.Quantity * input.UnitPrice
+		}
 	}
 
 	// Calculate Additional Fees & Total Revenue
@@ -1088,33 +1847,56 @@ func (h *TripHandler) UpdateTrip(c *gin.Context) {
 	now := time.Now()
 	update := bson.M{
 		"$set": bson.M{
-			"truck_id":              input.TruckID,
-			"truck_plate":           input.TruckPlate,
-			"driver_id":             input.DriverID,
-			"driver_name":           input.DriverName,
-			"loading_site_id":       input.LoadingSiteID,
-			"loading_site_name":     input.LoadingSiteName,
-			"dumping_site_id":       input.DumpingSiteID,
-			"dumping_site_name":     input.DumpingSiteName,
-			"has_transition":        input.HasTransition,
-			"transition_point_ids":  input.TransitionPointIDs,
-			"transition_point_name": input.TransitionPointName,
-			"material_id":           input.MaterialID,
-			"material_name":         input.MaterialName,
-			"quantity":              input.Quantity,
-			"unit":                  input.Unit,
-			"quantity_kg":           quantityKg,
-			"pricing_method":        input.PricingMethod,
-			"unit_price":            input.UnitPrice,
-			"lump_sum":              input.LumpSum,
-			"gross_revenue":         grossRevenue,
-			"total_revenue":         totalRevenue,
-			"additional_fees":       validFees,
-			"total_additional_fees": totalAdditionalFees,
-			"net_revenue":           netRevenue,
-			"status":                input.Status,
-			"notes":                 input.Notes,
-			"updated_at":            now,
+			"truck_id":                   input.TruckID,
+			"truck_plate":                input.TruckPlate,
+			"driver_id":                  input.DriverID,
+			"driver_name":                input.DriverName,
+			"loading_site_id":            input.LoadingSiteID,
+			"loading_site_name":          input.LoadingSiteName,
+			"dumping_site_id":            input.DumpingSiteID,
+			"dumping_site_name":          input.DumpingSiteName,
+			"has_transition":             input.HasTransition || isSplit,
+			"transition_point_ids":       input.TransitionPointIDs,
+			"transition_point_name":      input.TransitionPointName,
+			"material_id":                input.MaterialID,
+			"material_name":              input.MaterialName,
+			"quantity":                   input.Quantity,
+			"unit":                       input.Unit,
+			"quantity_kg":                quantityKg,
+			"pricing_method":             input.PricingMethod,
+			"unit_price":                 input.UnitPrice,
+			"pricing_target":             input.PricingTarget,
+			"drop_off_location":          input.DropOffLocation,
+			"transit_notes":              input.TransitNotes,
+			"transit_unit_price":         input.TransitUnitPrice,
+			"transit_unit_price_split":   input.TransitUnitPrice,
+			"destination_unit_price":     input.DestinationUnitPrice,
+			"destination_unit_price_split": input.DestinationUnitPrice,
+			"price_difference":           input.PriceDifference,
+			"lump_sum":                   input.LumpSum,
+			"is_split_drop":              isSplit,
+			"transit_quantity":           input.TransitQuantity,
+			"transit_unit":               input.TransitUnit,
+			"transit_quantity_kg":        toKg(input.TransitQuantity, input.TransitUnit),
+			"transit_pricing_method":     input.TransitPricingMethod,
+			"transit_lump_sum":           input.TransitLumpSum,
+			"transit_revenue":            transitRev,
+			"transit_receipt_number":     input.TransitReceiptNumber,
+			"destination_quantity":       input.DestinationQuantity,
+			"destination_unit":           input.DestinationUnit,
+			"destination_quantity_kg":    toKg(input.DestinationQuantity, input.DestinationUnit),
+			"destination_pricing_method": input.DestinationPricingMethod,
+			"destination_lump_sum":       input.DestinationLumpSum,
+			"destination_revenue":        destRev,
+			"destination_receipt_number": input.DestinationReceiptNumber,
+			"gross_revenue":              grossRevenue,
+			"total_revenue":              totalRevenue,
+			"additional_fees":            validFees,
+			"total_additional_fees":      totalAdditionalFees,
+			"net_revenue":                netRevenue,
+			"status":                     input.Status,
+			"notes":                      input.Notes,
+			"updated_at":                 now,
 		},
 	}
 

@@ -43,14 +43,14 @@ export const RoutesPricing = () => {
     transition_point_ids: [],
     material_id: '',
     default_price: 450,
-    pricing_method: 'per_ton',
+    pricing_method: 'per_quintal',
   });
 
   // Inline Quick Suggestion Loggers in Route Modal
   const [inlineLoading, setInlineLoading] = useState({ open: false, name: '', location: '' });
   const [inlineDumping, setInlineDumping] = useState({ open: false, name: '', location: '' });
   const [inlineTransit, setInlineTransit] = useState({ open: false, name: '', location: '' });
-  const [inlineMaterial, setInlineMaterial] = useState({ open: false, name: '', default_unit: 'ton', default_price: 450 });
+  const [inlineMaterial, setInlineMaterial] = useState({ open: false, name: '', default_unit: 'quintal', default_price: 450 });
 
   // Suggestion Modal States (Sites & Materials)
   const [siteModal, setSiteModal] = useState({
@@ -63,7 +63,7 @@ export const RoutesPricing = () => {
   const [materialModal, setMaterialModal] = useState({
     open: false,
     material: null,
-    form: { name: '', default_unit: 'ton', default_price: 450, description: '' },
+    form: { name: '', default_unit: 'quintal', default_price: 450, description: '' },
   });
 
   // Presets for Quick 1-Click Logging
@@ -153,7 +153,7 @@ export const RoutesPricing = () => {
   };
 
   const handleQuickSetupAll = async () => {
-    if (!confirm('Populate standard recommended hauling suggestions (Quarries, Sites & Materials) with 1 click?')) return;
+    if (!confirm(t('confirm_populate_hauling_suggestions', 'Populate standard recommended hauling suggestions (Quarries, Sites & Materials) with 1 click?'))) return;
     try {
       for (const p of loadingPresets.slice(0, 3)) {
         await api.post('/sites', { ...p, type: 'loading' });
@@ -168,9 +168,9 @@ export const RoutesPricing = () => {
         await api.post('/materials', p);
       }
       await loadData();
-      alert('Standard hauling suggestions successfully logged!');
+      alert(t('hauling_suggestions_logged_success', 'Standard hauling suggestions successfully logged!'));
     } catch (err) {
-      alert('Setup failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -183,12 +183,12 @@ export const RoutesPricing = () => {
       transition_point_ids: [],
       material_id: materials[0]?.id || '',
       default_price: 450,
-      pricing_method: 'per_ton',
+      pricing_method: 'per_quintal',
     });
     setInlineLoading({ open: false, name: '', location: '' });
     setInlineDumping({ open: false, name: '', location: '' });
     setInlineTransit({ open: false, name: '', location: '' });
-    setInlineMaterial({ open: false, name: '', default_unit: 'ton', default_price: 450 });
+    setInlineMaterial({ open: false, name: '', default_unit: 'quintal', default_price: 450 });
     setIsModalOpen(true);
   };
 
@@ -200,12 +200,12 @@ export const RoutesPricing = () => {
       transition_point_ids: route.transition_point_ids || [],
       material_id: route.material_id || '',
       default_price: route.default_price || 0,
-      pricing_method: route.pricing_method || 'per_ton',
+      pricing_method: route.pricing_method || 'per_quintal',
     });
     setInlineLoading({ open: false, name: '', location: '' });
     setInlineDumping({ open: false, name: '', location: '' });
     setInlineTransit({ open: false, name: '', location: '' });
-    setInlineMaterial({ open: false, name: '', default_unit: 'ton', default_price: 450 });
+    setInlineMaterial({ open: false, name: '', default_unit: 'quintal', default_price: 450 });
     setIsModalOpen(true);
   };
 
@@ -279,7 +279,7 @@ export const RoutesPricing = () => {
       }
 
       if (!finalLoadingId || !finalDumpingId || !finalMaterialId) {
-        alert('Please select or log a valid loading site, dumping site, and material.');
+        alert(t('select_valid_loading_dumping_material', 'Please select or log a valid loading site, dumping site, and material.'));
         return;
       }
 
@@ -306,17 +306,17 @@ export const RoutesPricing = () => {
       setEditingRoute(null);
       await loadData();
     } catch (err) {
-      alert('Failed to save route: ' + err.message);
+      alert(err.message);
     }
   };
 
   const handleDeleteRoute = async (route) => {
-    if (!confirm(`Are you sure you want to delete route "${route.loading_site_name} → ${route.dumping_site_name}"?`)) return;
+    if (!confirm(t('confirm_delete_route', 'Are you sure you want to delete this route?'))) return;
     try {
       await api.delete(`/routes/${route.id}`);
       await loadData();
     } catch (err) {
-      alert('Delete failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -375,7 +375,7 @@ export const RoutesPricing = () => {
     setMaterialModal({
       open: true,
       material: null,
-      form: { name: '', default_unit: 'ton', default_price: 450, description: '' },
+      form: { name: '', default_unit: 'quintal', default_price: 450, description: '' },
     });
   };
 
@@ -385,7 +385,7 @@ export const RoutesPricing = () => {
       material: mat,
       form: {
         name: mat.name || '',
-        default_unit: mat.default_unit || 'ton',
+        default_unit: mat.default_unit || 'quintal',
         default_price: mat.default_price || 0,
         description: mat.description || '',
       },
@@ -404,7 +404,7 @@ export const RoutesPricing = () => {
       } else {
         await api.post('/materials', payload);
       }
-      setMaterialModal({ open: false, material: null, form: { name: '', default_unit: 'ton', default_price: 450, description: '' } });
+      setMaterialModal({ open: false, material: null, form: { name: '', default_unit: 'quintal', default_price: 450, description: '' } });
       await loadData();
     } catch (err) {
       alert('Failed to save material suggestion: ' + err.message);
@@ -502,7 +502,7 @@ export const RoutesPricing = () => {
           }`}
         >
           <Route className="w-3.5 h-3.5" />
-          <span>Route Price Matrix</span>
+          <span>{t('route_price_matrix')}</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'routes' ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-300'}`}>
             {routes.length}
           </span>
@@ -517,7 +517,7 @@ export const RoutesPricing = () => {
           }`}
         >
           <MapPin className="w-3.5 h-3.5 text-amber-400" />
-          <span>Loading Sites Suggestions</span>
+          <span>{t('loading_sites_suggestions')}</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'loading' ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-300'}`}>
             {loadingSites.length}
           </span>
@@ -532,7 +532,7 @@ export const RoutesPricing = () => {
           }`}
         >
           <Building className="w-3.5 h-3.5 text-blue-400" />
-          <span>Dumping Sites Suggestions</span>
+          <span>{t('dumping_sites_suggestions')}</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'dumping' ? 'bg-slate-950 text-blue-400' : 'bg-slate-800 text-slate-300'}`}>
             {dumpingSites.length}
           </span>
@@ -547,7 +547,7 @@ export const RoutesPricing = () => {
           }`}
         >
           <Package className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Materials Suggestions</span>
+          <span>{t('materials_suggestions')}</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'materials' ? 'bg-slate-950 text-emerald-400' : 'bg-slate-800 text-slate-300'}`}>
             {materials.length}
           </span>
@@ -562,7 +562,7 @@ export const RoutesPricing = () => {
           }`}
         >
           <Scale className="w-3.5 h-3.5 text-purple-400" />
-          <span>Transit / Checkpoints</span>
+          <span>{t('transit_checkpoints_tab')}</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === 'transition' ? 'bg-slate-950 text-purple-400' : 'bg-slate-800 text-slate-300'}`}>
             {transitionPoints.length}
           </span>
@@ -574,17 +574,17 @@ export const RoutesPricing = () => {
         <div className="p-4 bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
-              <Zap className="w-4 h-4 text-amber-400" /> Fast-Start Hauling Suggestions
+              <Zap className="w-4 h-4 text-amber-400" /> {t('fast_start_hauling_suggestions')}
             </h4>
             <p className="text-xs text-slate-300">
-              Your system currently has no pre-recorded sites or materials. You can log them manually with the tabs above, or click below to populate standard Ethiopian hauling suggestions instantly.
+              {t('fast_start_hauling_desc')}
             </p>
           </div>
           <button
             onClick={handleQuickSetupAll}
             className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer whitespace-nowrap shrink-0"
           >
-            ⚡ Log Recommended Suggestions Presets
+            {t('log_recommended_suggestions_presets')}
           </button>
         </div>
       )}
@@ -597,15 +597,15 @@ export const RoutesPricing = () => {
               <div className="w-12 h-12 bg-slate-800 text-amber-400 rounded-2xl flex items-center justify-center mx-auto">
                 <Route className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-white text-base">No Standard Route Prices Configured Yet</h3>
+              <h3 className="font-bold text-white text-base">{t('no_standard_routes_configured')}</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Configure standard route pricing between quarries and destination projects. Drivers will have their hauling rates pre-filled automatically!
+                {t('configure_route_pricing_desc')}
               </p>
               <button
                 onClick={openAddModal}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow transition cursor-pointer"
               >
-                + Configure First Route Price
+                {t('configure_first_route_price')}
               </button>
             </div>
           ) : (
@@ -618,10 +618,10 @@ export const RoutesPricing = () => {
                   <div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-mono font-bold text-amber-400 flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4" /> Auto-suggested Route Rate
+                        <Sparkles className="w-4 h-4" /> {t('auto_suggested_route_rate')}
                       </span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
-                        Active
+                        {t('active')}
                       </span>
                     </div>
 
@@ -634,21 +634,24 @@ export const RoutesPricing = () => {
                       {r.transition_point_name && (
                         <div className="text-[11px] text-purple-400 flex items-center gap-1">
                           <Scale className="w-3 h-3" />
-                          <span>Via Checkpoint: {r.transition_point_name}</span>
+                          <span>{t('via_checkpoint')} {r.transition_point_name}</span>
                         </div>
                       )}
                     </div>
 
                     <div className="flex justify-between items-center text-xs">
                       <div>
-                        <span className="text-slate-400 block text-[10px]">Material:</span>
+                        <span className="text-slate-400 block text-[10px]">{t('material_colon')}</span>
                         <strong className="text-slate-200">{r.material_name}</strong>
                       </div>
                       <div className="text-right">
-                        <span className="text-slate-400 block text-[10px]">Standard Price:</span>
+                        <span className="text-slate-400 block text-[10px]">{t('standard_price_label')}</span>
                         <strong className="text-emerald-400 font-black text-sm">
                           {formatCurrency(r.default_price)} / {r.pricing_method?.replace('per_', '')}
                         </strong>
+                        <span className="block text-[10px] text-slate-400 font-mono">
+                          ({(r.pricing_method === 'per_ton' ? (r.default_price / 1000) : r.pricing_method === 'per_quintal' ? (r.default_price / 100) : r.default_price).toFixed(3)} ETB/kg)
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -658,7 +661,7 @@ export const RoutesPricing = () => {
                       onClick={() => openEditModal(r)}
                       className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-xl flex items-center justify-center gap-1 transition cursor-pointer"
                     >
-                      <Edit className="w-3.5 h-3.5" /> Edit
+                      <Edit className="w-3.5 h-3.5" /> {t('edit')}
                     </button>
                     <button
                       onClick={() => handleDeleteRoute(r)}
@@ -700,8 +703,8 @@ export const RoutesPricing = () => {
           {loadingSites.length === 0 ? (
             <div className="p-8 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-2">
               <MapPin className="w-8 h-8 text-amber-400 mx-auto" />
-              <h3 className="font-bold text-white text-sm">No Loading Sites Suggestions Yet</h3>
-              <p className="text-xs text-slate-400">Click "+ Log Loading Site Suggestion" or use the 1-click presets above.</p>
+              <h3 className="font-bold text-white text-sm">{t('no_loading_sites_yet')}</h3>
+              <p className="text-xs text-slate-400">{t('click_log_loading_site_or_presets')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -766,8 +769,8 @@ export const RoutesPricing = () => {
           {dumpingSites.length === 0 ? (
             <div className="p-8 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-2">
               <Building className="w-8 h-8 text-blue-400 mx-auto" />
-              <h3 className="font-bold text-white text-sm">No Dumping Sites Suggestions Yet</h3>
-              <p className="text-xs text-slate-400">Click "+ Log Dumping Site Suggestion" or use the 1-click presets above.</p>
+              <h3 className="font-bold text-white text-sm">{t('no_dumping_sites_yet')}</h3>
+              <p className="text-xs text-slate-400">{t('click_log_dumping_site_or_presets')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -832,8 +835,8 @@ export const RoutesPricing = () => {
           {materials.length === 0 ? (
             <div className="p-8 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-2">
               <Package className="w-8 h-8 text-emerald-400 mx-auto" />
-              <h3 className="font-bold text-white text-sm">No Materials Suggestions Yet</h3>
-              <p className="text-xs text-slate-400">Click "+ Log Material Suggestion" or use the 1-click presets above.</p>
+              <h3 className="font-bold text-white text-sm">{t('no_materials_yet')}</h3>
+              <p className="text-xs text-slate-400">{t('click_log_material_or_presets')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -895,8 +898,8 @@ export const RoutesPricing = () => {
           {transitionPoints.length === 0 ? (
             <div className="p-8 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-2">
               <Scale className="w-8 h-8 text-purple-400 mx-auto" />
-              <h3 className="font-bold text-white text-sm">No Transit Checkpoints Logged Yet</h3>
-              <p className="text-xs text-slate-400">Log weighbridges and axle scales to enable checkpoint tracking on routes.</p>
+              <h3 className="font-bold text-white text-sm">{t('no_transit_checkpoints_logged')}</h3>
+              <p className="text-xs text-slate-400">{t('log_weighbridges_sub')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -956,13 +959,13 @@ export const RoutesPricing = () => {
               {/* 1. Loading Site Field + Inline Logger */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-semibold">Loading Site (Quarry / Source):</label>
+                  <label className="text-slate-300 font-semibold">{t('loading_site_quarry_label')}</label>
                   <button
                     type="button"
                     onClick={() => setInlineLoading({ ...inlineLoading, open: !inlineLoading.open })}
                     className="text-[11px] text-amber-400 hover:underline font-bold cursor-pointer"
                   >
-                    {inlineLoading.open ? '← Select existing' : '+ Log new site'}
+                    {inlineLoading.open ? t('select_existing_opt') : t('log_new_site_opt')}
                   </button>
                 </div>
 
@@ -970,7 +973,7 @@ export const RoutesPricing = () => {
                   <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
                     <input
                       type="text"
-                      placeholder="Enter new quarry name (e.g. Mojo Quarry 02)"
+                      placeholder={t('ph_new_quarry_name')}
                       value={inlineLoading.name}
                       onChange={e => setInlineLoading({ ...inlineLoading, name: e.target.value })}
                       className="w-full py-1.5 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
@@ -978,7 +981,7 @@ export const RoutesPricing = () => {
                     />
                     <input
                       type="text"
-                      placeholder="Quarry location / route (e.g. Mojo Mile 5)"
+                      placeholder={t('ph_quarry_loc_example')}
                       value={inlineLoading.location}
                       onChange={e => setInlineLoading({ ...inlineLoading, location: e.target.value })}
                       className="w-full py-1.5 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
@@ -991,7 +994,7 @@ export const RoutesPricing = () => {
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                     required
                   >
-                    <option value="">-- Select Loading Quarry --</option>
+                    <option value="">{t('select_loading_quarry')}</option>
                     {loadingSites.map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({s.location || 'Local'})</option>
                     ))}
@@ -1002,13 +1005,13 @@ export const RoutesPricing = () => {
               {/* 2. Destination Dumping Site Field + Inline Logger */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-semibold">Destination Dumping Site (Project):</label>
+                  <label className="text-slate-300 font-semibold">{t('destination_dumping_site_label')}</label>
                   <button
                     type="button"
                     onClick={() => setInlineDumping({ ...inlineDumping, open: !inlineDumping.open })}
                     className="text-[11px] text-blue-400 hover:underline font-bold cursor-pointer"
                   >
-                    {inlineDumping.open ? '← Select existing' : '+ Log new destination'}
+                    {inlineDumping.open ? t('select_existing_opt') : t('log_new_destination_opt')}
                   </button>
                 </div>
 
@@ -1016,7 +1019,7 @@ export const RoutesPricing = () => {
                   <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-xl space-y-2">
                     <input
                       type="text"
-                      placeholder="Enter destination project name (e.g. Ring Road Phase 3)"
+                      placeholder={t('ph_enter_dest_project_name')}
                       value={inlineDumping.name}
                       onChange={e => setInlineDumping({ ...inlineDumping, name: e.target.value })}
                       className="w-full py-1.5 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
@@ -1024,7 +1027,7 @@ export const RoutesPricing = () => {
                     />
                     <input
                       type="text"
-                      placeholder="Site location (e.g. Gotera Inter-junction)"
+                      placeholder={t('site_loc_ph')}
                       value={inlineDumping.location}
                       onChange={e => setInlineDumping({ ...inlineDumping, location: e.target.value })}
                       className="w-full py-1.5 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
@@ -1037,7 +1040,7 @@ export const RoutesPricing = () => {
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                     required
                   >
-                    <option value="">-- Select Destination Project --</option>
+                    <option value="">{t('select_destination_project')}</option>
                     {dumpingSites.map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({s.location || 'Local'})</option>
                     ))}
@@ -1048,13 +1051,13 @@ export const RoutesPricing = () => {
               {/* 3. Material Field + Inline Logger */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-semibold">Material Transported:</label>
+                  <label className="text-slate-300 font-semibold">{t('material_transported_label')}</label>
                   <button
                     type="button"
                     onClick={() => setInlineMaterial({ ...inlineMaterial, open: !inlineMaterial.open })}
                     className="text-[11px] text-emerald-400 hover:underline font-bold cursor-pointer"
                   >
-                    {inlineMaterial.open ? '← Select existing' : '+ Log new material'}
+                    {inlineMaterial.open ? t('select_existing_opt') : t('log_new_material_opt')}
                   </button>
                 </div>
 
@@ -1062,7 +1065,7 @@ export const RoutesPricing = () => {
                   <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2">
                     <input
                       type="text"
-                      placeholder="Enter material name (e.g. Red Ash / Basalt)"
+                      placeholder={t('material_name_ph')}
                       value={inlineMaterial.name}
                       onChange={e => setInlineMaterial({ ...inlineMaterial, name: e.target.value })}
                       className="w-full py-1.5 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
@@ -1074,14 +1077,14 @@ export const RoutesPricing = () => {
                         onChange={e => setInlineMaterial({ ...inlineMaterial, default_unit: e.target.value })}
                         className="w-full py-1.5 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
                       >
-                        <option value="ton">Ton</option>
-                        <option value="quintal">Quintal</option>
-                        <option value="m3">Cubic Meter (m³)</option>
-                        <option value="trip">Trip / Load</option>
+                        <option value="ton">{t('unit_ton_display')}</option>
+                        <option value="quintal">{t('unit_quintal_display')}</option>
+                        <option value="m3">{t('cubic_meter_unit') || 'Cubic Meter (m³)'}</option>
+                        <option value="trip">{t('unit_trip_load')}</option>
                       </select>
                       <input
                         type="number"
-                        placeholder="Default price"
+                        placeholder={t('ph_default_price')}
                         value={inlineMaterial.default_price}
                         onChange={e => setInlineMaterial({ ...inlineMaterial, default_price: e.target.value })}
                         className="w-full py-1.5 px-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono"
@@ -1095,7 +1098,7 @@ export const RoutesPricing = () => {
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                     required
                   >
-                    <option value="">-- Select Material --</option>
+                    <option value="">{t('select_material')}</option>
                     {materials.map(m => (
                       <option key={m.id} value={m.id}>{m.name} ({formatCurrency(m.default_price)} / {m.default_unit})</option>
                     ))}
@@ -1106,13 +1109,13 @@ export const RoutesPricing = () => {
               {/* 4. Transit Point (Optional) */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-semibold">Transit / Weighbridge Checkpoint (Optional):</label>
+                  <label className="text-slate-300 font-semibold">{t('transit_weighbridge_checkpoint_label')}</label>
                   <button
                     type="button"
                     onClick={() => setInlineTransit({ ...inlineTransit, open: !inlineTransit.open })}
                     className="text-[11px] text-purple-400 hover:underline font-bold cursor-pointer"
                   >
-                    {inlineTransit.open ? '← Select existing' : '+ Log new checkpoint'}
+                    {inlineTransit.open ? t('select_existing_opt') : t('log_new_checkpoint_opt')}
                   </button>
                 </div>
 
@@ -1120,7 +1123,7 @@ export const RoutesPricing = () => {
                   <div className="p-2.5 bg-purple-500/10 border border-purple-500/30 rounded-xl space-y-2">
                     <input
                       type="text"
-                      placeholder="Checkpoint name (e.g. Modjo Scale Bridge)"
+                      placeholder={t('ph_checkpoint_name_example')}
                       value={inlineTransit.name}
                       onChange={e => setInlineTransit({ ...inlineTransit, name: e.target.value })}
                       className="w-full py-1.5 px-3 bg-slate-800 border border-slate-700 rounded-lg text-white"
@@ -1133,9 +1136,9 @@ export const RoutesPricing = () => {
                     onChange={e => setFormData({ ...formData, transition_point_ids: e.target.value ? [e.target.value] : [] })}
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                   >
-                    <option value="">None (Direct Hauling)</option>
-                    {transitionPoints.map(t => (
-                      <option key={t.id} value={t.id}>{t.name} ({t.location || 'Checkpoint'})</option>
+                    <option value="">{t('none_direct_hauling')}</option>
+                    {transitionPoints.map(tPoint => (
+                      <option key={tPoint.id} value={tPoint.id}>{tPoint.name} ({tPoint.location || 'Checkpoint'})</option>
                     ))}
                   </select>
                 )}
@@ -1144,20 +1147,20 @@ export const RoutesPricing = () => {
               {/* 5. Pricing Method and Rate */}
               <div className="grid grid-cols-2 gap-2.5 pt-1">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Pricing Unit:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('pricing_unit_label')}</label>
                   <select
                     value={formData.pricing_method}
                     onChange={e => setFormData({ ...formData, pricing_method: e.target.value })}
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold"
                   >
-                    <option value="per_ton">Per Ton</option>
-                    <option value="per_quintal">Per Quintal</option>
-                    <option value="per_kg">Per KG</option>
-                    <option value="lump_sum">Lump Sum per Trip</option>
+                    <option value="per_ton">{t('per_ton_opt')}</option>
+                    <option value="per_quintal">{t('per_quintal_opt')}</option>
+                    <option value="per_kg">{t('per_kg_opt')}</option>
+                    <option value="lump_sum">{t('lump_sum_per_trip_opt')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Standard Rate (ETB):</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('standard_rate_etb_label')}</label>
                   <input
                     type="number"
                     step="any"
@@ -1194,16 +1197,16 @@ export const RoutesPricing = () => {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-5 space-y-4">
             <h3 className="font-bold text-base text-white">
-              {siteModal.site ? 'Edit Site Suggestion' : `Log New ${siteModal.type === 'loading' ? 'Loading Site' : siteModal.type === 'dumping' ? 'Dumping Site' : 'Transit Point'} Suggestion`}
+              {siteModal.site ? t('edit_site_suggestion') : t('log_new_site_suggestion')}
             </h3>
 
             <form onSubmit={handleSaveSiteModal} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Site / Quarry Name:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('site_quarry_name_label')}</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Quarry A / Bole Lemi Project"
+                  placeholder={t('site_quarry_ph')}
                   value={siteModal.form.name}
                   onChange={e => setSiteModal({ ...siteModal, form: { ...siteModal.form, name: e.target.value } })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -1211,10 +1214,10 @@ export const RoutesPricing = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Location / Address:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('loc_address_label')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. Awash Basin Mile 42"
+                  placeholder={t('ph_awash_basin_example')}
                   value={siteModal.form.location}
                   onChange={e => setSiteModal({ ...siteModal, form: { ...siteModal.form, location: e.target.value } })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -1222,10 +1225,10 @@ export const RoutesPricing = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Description / Notes:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('desc_notes_label')}</label>
                 <textarea
                   rows="2"
-                  placeholder="Additional details about access, surface quality, etc."
+                  placeholder={t('ph_route_access_details')}
                   value={siteModal.form.description}
                   onChange={e => setSiteModal({ ...siteModal, form: { ...siteModal.form, description: e.target.value } })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white resize-none"
@@ -1238,13 +1241,13 @@ export const RoutesPricing = () => {
                   onClick={() => setSiteModal({ open: false, type: 'loading', site: null, form: { name: '', location: '', description: '' } })}
                   className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer"
                 >
-                  Save Suggestion
+                  {t('save_suggestion')}
                 </button>
               </div>
             </form>
@@ -1257,16 +1260,16 @@ export const RoutesPricing = () => {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-5 space-y-4">
             <h3 className="font-bold text-base text-white">
-              {materialModal.material ? 'Edit Material Suggestion' : 'Log New Material Suggestion'}
+              {materialModal.material ? t('edit_material_suggestion') : t('log_new_material_suggestion')}
             </h3>
 
             <form onSubmit={handleSaveMaterialModal} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Material Name:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('material_name_field_label')}</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Washed River Sand / Crushed Aggregate 02"
+                  placeholder={t('ph_material_name_example')}
                   value={materialModal.form.name}
                   onChange={e => setMaterialModal({ ...materialModal, form: { ...materialModal.form, name: e.target.value } })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -1275,22 +1278,22 @@ export const RoutesPricing = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Default Unit:</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('default_unit_field_label')}</label>
                   <select
                     value={materialModal.form.default_unit}
                     onChange={e => setMaterialModal({ ...materialModal, form: { ...materialModal.form, default_unit: e.target.value } })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                   >
-                    <option value="ton">Ton</option>
-                    <option value="quintal">Quintal</option>
-                    <option value="m3">Cubic Meter (m³)</option>
-                    <option value="trip">Trip / Load</option>
-                    <option value="kg">KG</option>
+                    <option value="ton">{t('unit_ton_display')}</option>
+                    <option value="quintal">{t('unit_quintal_display')}</option>
+                    <option value="m3">{t('cubic_meter_unit') || 'Cubic Meter (m³)'}</option>
+                    <option value="trip">{t('unit_trip_load')}</option>
+                    <option value="kg">{t('unit_kg') || 'KG'}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 mb-1 font-semibold">Default Price (ETB):</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">{t('default_price_etb_label')}</label>
                   <input
                     type="number"
                     step="any"
@@ -1303,10 +1306,10 @@ export const RoutesPricing = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-semibold">Description:</label>
+                <label className="block text-slate-300 mb-1 font-semibold">{t('description_field_label')}</label>
                 <textarea
                   rows="2"
-                  placeholder="Specifications, aggregate size, purity, etc."
+                  placeholder={t('description_specs_ph')}
                   value={materialModal.form.description}
                   onChange={e => setMaterialModal({ ...materialModal, form: { ...materialModal.form, description: e.target.value } })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white resize-none"
@@ -1319,13 +1322,13 @@ export const RoutesPricing = () => {
                   onClick={() => setMaterialModal({ open: false, material: null, form: { name: '', default_unit: 'ton', default_price: 450, description: '' } })}
                   className="px-4 py-2 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow cursor-pointer"
                 >
-                  Save Material Suggestion
+                  {t('save_suggestion')}
                 </button>
               </div>
             </form>

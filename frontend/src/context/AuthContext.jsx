@@ -70,7 +70,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       if (roleOrEmail === 'admin') {
-        await login('admin@sino.com', 'admin123');
+        await login('soneschool1@gmail.com', 'sone@7151');
       } else if (typeof roleOrEmail === 'object' && (roleOrEmail?.email || roleOrEmail?.phone)) {
         await login(roleOrEmail.email || roleOrEmail.phone, roleOrEmail.temp_password || customPassword || 'driver123');
       } else if (typeof roleOrEmail === 'string' && (roleOrEmail.includes('@') || roleOrEmail.startsWith('+') || /^\d+$/.test(roleOrEmail.trim()))) {

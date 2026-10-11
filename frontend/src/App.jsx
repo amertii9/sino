@@ -9,8 +9,14 @@ import { AdminPortal } from './components/admin/AdminPortal';
 import { Truck } from 'lucide-react';
 
 const AppContent = () => {
-  const { isAuthenticated, role, loading } = useAuth();
-  const { t } = useLanguage();
+  const { isAuthenticated, role, loading, user } = useAuth();
+  const { t, applyUserLanguage } = useLanguage();
+
+  React.useEffect(() => {
+    if (user) {
+      applyUserLanguage(user);
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -28,7 +34,7 @@ const AppContent = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col transition-colors duration-150">
+    <div className="min-h-screen bg-[#f3f5fa] text-slate-900 dark:bg-[#121624] dark:text-slate-100 flex flex-col transition-colors duration-150">
       <Header />
       <div className="flex-1">
         {role === 'admin' ? <AdminPortal /> : <DriverDashboard />}

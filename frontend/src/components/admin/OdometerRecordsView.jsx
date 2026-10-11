@@ -313,7 +313,7 @@ export const OdometerRecordsView = () => {
             onClick={loadData}
             disabled={loading}
             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 rounded-2xl text-sm font-bold transition-all shadow-sm flex items-center space-x-2"
-            title="Refresh records"
+            title={t('refresh_records', 'Refresh records')}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-amber-500' : ''}`} />
             <span className="hidden sm:inline">{t('refresh', 'Refresh')}</span>
@@ -323,7 +323,7 @@ export const OdometerRecordsView = () => {
             onClick={handleExportCSV}
             disabled={!records.length}
             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 rounded-2xl text-sm font-bold transition-all shadow-sm flex items-center space-x-2 disabled:opacity-50"
-            title="Export CSV"
+            title={t('export_csv', 'Export CSV')}
           >
             <Download className="w-4 h-4 text-amber-500" />
             <span className="hidden sm:inline">{t('export', 'Export CSV')}</span>
@@ -370,7 +370,7 @@ export const OdometerRecordsView = () => {
             </span>
             <span className="text-sm font-black text-amber-500">KM</span>
           </div>
-          <div className="text-xs text-slate-500 mt-1.5 font-medium">Across all hauling operations</div>
+          <div className="text-xs text-slate-500 mt-1.5 font-medium">{t('across_hauling_ops', 'Across all hauling operations')}</div>
         </div>
 
         {/* Today's Distance */}
@@ -389,7 +389,7 @@ export const OdometerRecordsView = () => {
             </span>
             <span className="text-sm font-black text-emerald-500">KM</span>
           </div>
-          <div className="text-xs text-slate-500 mt-1.5 font-medium">Recorded on current shift date</div>
+          <div className="text-xs text-slate-500 mt-1.5 font-medium">{t('recorded_shift_date', 'Recorded on current shift date')}</div>
         </div>
 
         {/* Month Distance */}
@@ -408,7 +408,7 @@ export const OdometerRecordsView = () => {
             </span>
             <span className="text-sm font-black text-blue-500">KM</span>
           </div>
-          <div className="text-xs text-slate-500 mt-1.5 font-medium">Month-to-date fleet total</div>
+          <div className="text-xs text-slate-500 mt-1.5 font-medium">{t('month_to_date_fleet', 'Month-to-date fleet total')}</div>
         </div>
 
         {/* Active Trucks Today */}
@@ -423,9 +423,9 @@ export const OdometerRecordsView = () => {
           </div>
           <div className="mt-4 flex items-baseline space-x-1.5">
             <span className="text-3xl font-black text-purple-500 tracking-tight">{stats.active_trucks_today}</span>
-            <span className="text-sm font-black text-purple-500/80">TRUCKS</span>
+            <span className="text-sm font-black text-purple-500/80">{t('menu_trucks', 'TRUCKS')}</span>
           </div>
-          <div className="text-xs text-slate-500 mt-1.5 font-medium">Logged odometer today</div>
+          <div className="text-xs text-slate-500 mt-1.5 font-medium">{t('logged_odometer_today', 'Logged odometer today')}</div>
         </div>
       </div>
 
@@ -505,8 +505,8 @@ export const OdometerRecordsView = () => {
             className="bg-slate-800/60 border border-slate-700/50 rounded-xl px-4 py-2 text-xs font-medium text-slate-200 focus:outline-none focus:border-amber-500 hover:bg-slate-800 transition-colors"
           >
             <option value="">{t('odo_filter_status', 'All Statuses')}</option>
-            <option value="completed">Completed</option>
-            <option value="started">Started / In-Progress</option>
+            <option value="completed">{t('status_completed', 'Completed')}</option>
+            <option value="started">{t('started_in_progress_status', 'Started / In-Progress')}</option>
           </select>
 
           {/* Date Filter */}
@@ -543,7 +543,7 @@ export const OdometerRecordsView = () => {
                   <td colSpan="10" className="py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center space-x-2">
                       <RefreshCw className="w-5 h-5 animate-spin text-amber-500" />
-                      <span>Loading odometer records...</span>
+                      <span>{t('loading_odometer_records', 'Loading odometer records...')}</span>
                     </div>
                   </td>
                 </tr>
@@ -620,7 +620,7 @@ export const OdometerRecordsView = () => {
                             {formatNumber(rec.end_reading, 0)} km
                           </span>
                         ) : (
-                          <span className="text-slate-500 text-[11px] italic font-medium">In progress...</span>
+                          <span className="text-slate-500 text-[11px] italic font-medium">{t('in_progress_ellipsis', 'In progress...')}</span>
                         )}
                       </td>
 
@@ -640,12 +640,12 @@ export const OdometerRecordsView = () => {
                         <div className="space-y-1 text-[11px]">
                           {rec.trip_number && (
                             <div className="font-mono text-blue-400 font-bold bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20 inline-block">
-                              TRIP: {rec.trip_number}
+                              {t('trip_prefix', 'TRIP')}: {rec.trip_number}
                             </div>
                           )}
                           {rec.receipt_number && (
                             <div className="font-mono text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 inline-block mt-1">
-                              RCPT: {rec.receipt_number}
+                              {t('rcpt_prefix', 'RCPT')}: {rec.receipt_number}
                             </div>
                           )}
                           {!rec.trip_number && !rec.receipt_number && (
@@ -659,12 +659,12 @@ export const OdometerRecordsView = () => {
                         {rec.status === 'completed' || rec.end_reading > 0 ? (
                           <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
                             <CheckCircle className="w-3 h-3" />
-                            <span>Completed</span>
+                            <span>{t('status_completed', 'Completed')}</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-sm">
                             <Clock className="w-3 h-3 animate-pulse" />
-                            <span>In-Progress</span>
+                            <span>{t('in_progress_status_tag', 'In-Progress')}</span>
                           </span>
                         )}
                       </td>
@@ -675,14 +675,14 @@ export const OdometerRecordsView = () => {
                           <button
                             onClick={() => openEditModal(rec)}
                             className="p-2 bg-slate-800 border border-slate-700 hover:border-slate-500 hover:bg-slate-700 text-slate-300 hover:text-amber-400 rounded-xl transition-all shadow-sm cursor-pointer"
-                            title="Edit / Correct record"
+                            title={t('edit_record_btn', 'Edit / Correct record')}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteRecord(rec)}
                             className="p-2 bg-slate-800 border border-slate-700 hover:border-red-500/50 hover:bg-red-500/10 text-slate-400 hover:text-red-400 rounded-xl transition-all shadow-sm cursor-pointer"
-                            title="Delete record"
+                            title={t('delete_record_btn', 'Delete record')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -751,7 +751,7 @@ export const OdometerRecordsView = () => {
                     disabled={!!editingRecord}
                     className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-amber-500 disabled:opacity-50 transition-colors shadow-inner"
                   >
-                    <option value="">Select Truck</option>
+                    <option value="">{t('select_truck_opt', 'Select Truck')}</option>
                     {trucks.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.plate_number} - {t.model || t.type}
@@ -770,7 +770,7 @@ export const OdometerRecordsView = () => {
                     onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
                     className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-100 focus:outline-none focus:border-amber-500 transition-colors shadow-inner"
                   >
-                    <option value="">No Driver Assigned</option>
+                    <option value="">{t('no_driver_assigned_tag', 'No Driver Assigned')}</option>
                     {drivers.map((d) => (
                       <option key={d.id || d.user_id} value={d.user_id || d.id}>
                         {d.full_name}
@@ -836,7 +836,7 @@ export const OdometerRecordsView = () => {
                 {parseFloat(formData.start_reading) > 0 &&
                   parseFloat(formData.end_reading) >= parseFloat(formData.start_reading) && (
                     <div className="col-span-2 mt-2 pt-3 flex items-center justify-between text-xs border-t border-slate-700/50">
-                      <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Calculated Distance</span>
+                      <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">{t('calculated_distance', 'Calculated Distance')}</span>
                       <span className="font-mono font-black text-amber-400 text-base bg-amber-500/10 px-2.5 py-0.5 rounded-md border border-amber-500/20">
                         +{(parseFloat(formData.end_reading) - parseFloat(formData.start_reading)).toLocaleString()} km
                       </span>
@@ -851,7 +851,7 @@ export const OdometerRecordsView = () => {
                 </label>
                 <textarea
                   rows="2"
-                  placeholder="e.g. Yard transfer odometer adjustment, trip correction..."
+                  placeholder={t('odometer_notes_ph', 'e.g. Yard transfer odometer adjustment, trip correction...')}
                   value={formData.start_notes}
                   onChange={(e) => setFormData({ ...formData, start_notes: e.target.value })}
                   className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-3 text-xs font-medium text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors shadow-inner"
@@ -936,28 +936,28 @@ export const OdometerRecordsView = () => {
 
               <div className="bg-slate-800/80 border border-slate-700 p-3.5 rounded-2xl space-y-2 text-xs">
                 <div className="flex justify-between text-slate-400">
-                  <span>Date:</span>
+                  <span>{t('date_field_colon', 'Date:')}</span>
                   <span className="font-semibold text-slate-200">{deleteTarget.date}</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>Start Reading:</span>
+                  <span>{t('start_reading_label', 'Start Reading:')}</span>
                   <span className="font-mono font-bold text-amber-400">{formatNumber(deleteTarget.start_reading, 0)} km</span>
                 </div>
                 {deleteTarget.end_reading > 0 && (
                   <div className="flex justify-between text-slate-400">
-                    <span>End Reading:</span>
+                    <span>{t('end_reading_label', 'End Reading:')}</span>
                     <span className="font-mono font-bold text-emerald-400">{formatNumber(deleteTarget.end_reading, 0)} km</span>
                   </div>
                 )}
                 {deleteTarget.trip_number && (
                   <div className="flex justify-between text-slate-400">
-                    <span>Associated Trip:</span>
+                    <span>{t('associated_trip_label', 'Associated Trip:')}</span>
                     <span className="font-mono font-bold text-blue-400">{deleteTarget.trip_number}</span>
                   </div>
                 )}
                 {deleteTarget.source && (
                   <div className="flex justify-between text-slate-400">
-                    <span>Source:</span>
+                    <span>{t('source_label', 'Source:')}</span>
                     <span className="font-semibold text-slate-300 uppercase text-[10px]">{deleteTarget.source}</span>
                   </div>
                 )}
@@ -965,7 +965,7 @@ export const OdometerRecordsView = () => {
 
               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-xs text-red-300">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                <span>Removing this entry will adjust the odometer audit log for this truck.</span>
+                <span>{t('removing_entry_warning', 'Removing this entry will adjust the odometer audit log for this truck.')}</span>
               </div>
             </div>
 

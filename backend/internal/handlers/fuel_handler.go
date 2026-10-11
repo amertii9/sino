@@ -22,24 +22,26 @@ func NewFuelHandler(base BaseHandler) *FuelHandler {
 }
 
 type FuelRequestInput struct {
-	FuelSource      string     `json:"fuel_source"` // "gas_station" or "reserve_fuel"
-	OdometerReading float64    `json:"odometer_reading"`
-	Liters          float64    `json:"liters"`
-	PricePerLiter   float64    `json:"price_per_liter"`
-	AmountRequested float64    `json:"amount_requested"`
-	AmountApproved  float64    `json:"amount_approved"`
-	Reason          string     `json:"reason"`
-	CurrentTripID   string     `json:"current_trip_id"`
-	FuelStation     string     `json:"fuel_station"`
-	Notes           string     `json:"notes"`
-	AdminNote       string     `json:"admin_note"`
-	ReceiptURL      string     `json:"receipt_url"`
-	TruckID         string     `json:"truck_id"`
-	TruckPlate      string     `json:"truck_plate"`
-	DriverID        string     `json:"driver_id"`
-	DriverName      string     `json:"driver_name"`
-	Status          string     `json:"status"`
-	RequestedAt     *time.Time `json:"requested_at"`
+	FuelSource          string     `json:"fuel_source"` // "gas_station" or "reserve_fuel"
+	ReserveAction       string     `json:"reserve_action"` // "procure" (Step 1) or "draw" (Step 2)
+	ReserveProcureReqID string     `json:"reserve_procure_req_id"`
+	OdometerReading     float64    `json:"odometer_reading"`
+	Liters              float64    `json:"liters"`
+	PricePerLiter       float64    `json:"price_per_liter"`
+	AmountRequested     float64    `json:"amount_requested"`
+	AmountApproved      float64    `json:"amount_approved"`
+	Reason              string     `json:"reason"`
+	CurrentTripID       string     `json:"current_trip_id"`
+	FuelStation         string     `json:"fuel_station"`
+	Notes               string     `json:"notes"`
+	AdminNote           string     `json:"admin_note"`
+	ReceiptURL          string     `json:"receipt_url"`
+	TruckID             string     `json:"truck_id"`
+	TruckPlate          string     `json:"truck_plate"`
+	DriverID            string     `json:"driver_id"`
+	DriverName          string     `json:"driver_name"`
+	Status              string     `json:"status"`
+	RequestedAt         *time.Time `json:"requested_at"`
 }
 
 func (h *FuelHandler) RequestFuel(c *gin.Context) {
@@ -53,6 +55,51 @@ func (h *FuelHandler) RequestFuel(c *gin.Context) {
 		input.FuelSource = "gas_station"
 	}
 
+	if input.FuelSource == "reserve_fuel" {
+		if input.ReserveAction == "" {
+			if input.OdometerReading > 0 || input.TruckPlate != "" {
+				input.ReserveAction = "draw"
+			} else {
+				input.ReserveAction = "procure"
+			}
+		}
+	}
+
+	// Fetch current system settings for diesel benchmark & reserve fuel balance check
+	var settings models.Settings
+	_ = h.DB.Settings.FindOne(c.Request.Context(), bson.M{}).Decode(&settings)
+
+	// Validate Reserve Fuel requests
+	if input.FuelSource == "reserve_fuel" {
+		if input.ReserveAction == "draw" {
+			// Step 2 (Pumping/Drawing from Reserve Tank)
+			if input.Liters <= 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Please specify fuel quantity in liters to pump from the reserve tank"})
+				return
+			}
+			if settings.ReserveFuelBalanceLiters < input.Liters {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": fmt.Sprintf("Insufficient fuel in company yard reserve tank. Available: %.1f Liters, Requested: %.1f Liters. Please submit a Step 1 request to replenish/fill the reserve tank first.", settings.ReserveFuelBalanceLiters, input.Liters),
+					"available_liters": settings.ReserveFuelBalanceLiters,
+				})
+				return
+			}
+		} else {
+			// Step 1 (Procuring/Filling the Reserve Tank)
+			if input.Liters <= 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Please specify fuel quantity in liters to procure for the reserve tank"})
+				return
+			}
+			if input.PricePerLiter <= 0 {
+				if settings.DieselPrice > 0 {
+					input.PricePerLiter = settings.DieselPrice
+				} else {
+					input.PricePerLiter = 100.0
+				}
+			}
+		}
+	}
+
 	// Auto-calculate amount if liters & price per liter are provided
 	if input.AmountRequested <= 0 {
 		if input.Liters > 0 && input.PricePerLiter > 0 {
@@ -60,20 +107,28 @@ func (h *FuelHandler) RequestFuel(c *gin.Context) {
 		} else if input.FuelSource == "reserve_fuel" && input.Liters > 0 {
 			rate := input.PricePerLiter
 			if rate <= 0 {
-				rate = 100.0
+				if settings.DieselPrice > 0 {
+					rate = settings.DieselPrice
+				} else {
+					rate = 100.0
+				}
 			}
 			input.AmountRequested = input.Liters * rate
 		}
 	}
 
-	if input.AmountRequested <= 0 {
+	if input.AmountRequested <= 0 && input.FuelSource != "reserve_fuel" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Amount requested or fuel liters must be greater than zero"})
 		return
 	}
 
 	if input.Reason == "" {
 		if input.FuelSource == "reserve_fuel" {
-			input.Reason = fmt.Sprintf("Reserve fuel dispense (%.1f L)", input.Liters)
+			if input.ReserveAction == "draw" {
+				input.Reason = fmt.Sprintf("Reserve tank dispense (Step 2 Draw): %.1f L pumped into truck", input.Liters)
+			} else {
+				input.Reason = fmt.Sprintf("Reserve tank replenishment (Step 1 Procure): %.1f L requested for yard tank", input.Liters)
+			}
 		} else {
 			input.Reason = fmt.Sprintf("Gas station diesel refueling (%.1f L)", input.Liters)
 		}
@@ -209,27 +264,29 @@ func (h *FuelHandler) RequestFuel(c *gin.Context) {
 	}
 
 	fuelReq := models.FuelRequest{
-		ID:              bson.NewObjectID(),
-		RequestNumber:   reqNumber,
-		DriverID:        driverID,
-		DriverName:      driverName,
-		TruckID:         truckID,
-		TruckPlate:      truckPlate,
-		FuelSource:      input.FuelSource,
-		OdometerReading: input.OdometerReading,
-		Liters:          input.Liters,
-		PricePerLiter:   input.PricePerLiter,
-		AmountRequested: input.AmountRequested,
-		AmountApproved:  amountApproved,
-		Reason:          input.Reason,
-		CurrentTripID:   input.CurrentTripID,
-		FuelStation:     input.FuelStation,
-		ReceiptURL:      input.ReceiptURL,
-		Status:          status,
-		Notes:           input.Notes,
-		AdminNote:       input.AdminNote,
-		RequestedAt:     reqTime,
-		CreatedAt:       time.Now(),
+		ID:                  bson.NewObjectID(),
+		RequestNumber:       reqNumber,
+		DriverID:            driverID,
+		DriverName:          driverName,
+		TruckID:             truckID,
+		TruckPlate:          truckPlate,
+		FuelSource:          input.FuelSource,
+		ReserveAction:       input.ReserveAction,
+		ReserveProcureReqID: input.ReserveProcureReqID,
+		OdometerReading:     input.OdometerReading,
+		Liters:              input.Liters,
+		PricePerLiter:       input.PricePerLiter,
+		AmountRequested:     input.AmountRequested,
+		AmountApproved:      amountApproved,
+		Reason:              input.Reason,
+		CurrentTripID:       input.CurrentTripID,
+		FuelStation:         input.FuelStation,
+		ReceiptURL:          input.ReceiptURL,
+		Status:              status,
+		Notes:               input.Notes,
+		AdminNote:           input.AdminNote,
+		RequestedAt:         reqTime,
+		CreatedAt:           time.Now(),
 	}
 
 	// Update truck odometer if a valid reading was supplied
@@ -243,6 +300,28 @@ func (h *FuelHandler) RequestFuel(c *gin.Context) {
 					"mileage":          input.OdometerReading,
 				}},
 			)
+		}
+	}
+
+	// Handle Reserve Fuel inventory update if directly approved or paid
+	if (status == "paid" || status == "approved") && input.FuelSource == "reserve_fuel" {
+		if input.ReserveAction == "procure" && !fuelReq.InventoryAdded {
+			before := settings.ReserveFuelBalanceLiters
+			after := before + input.Liters
+			_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{"$set": bson.M{"reserve_fuel_balance_liters": after, "updated_at": time.Now()}})
+			fuelReq.ReserveBalanceBefore = before
+			fuelReq.ReserveBalanceAfter = after
+			fuelReq.InventoryAdded = true
+		} else if input.ReserveAction == "draw" && !fuelReq.InventoryDeducted {
+			before := settings.ReserveFuelBalanceLiters
+			after := before - input.Liters
+			if after < 0 {
+				after = 0
+			}
+			_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{"$set": bson.M{"reserve_fuel_balance_liters": after, "updated_at": time.Now()}})
+			fuelReq.ReserveBalanceBefore = before
+			fuelReq.ReserveBalanceAfter = after
+			fuelReq.InventoryDeducted = true
 		}
 	}
 
@@ -328,7 +407,7 @@ func (h *FuelHandler) GetFuelRequests(c *gin.Context) {
 }
 
 type ApproveFuelInput struct {
-	AmountApproved float64 `json:"amount_approved" binding:"required"`
+	AmountApproved float64 `json:"amount_approved"`
 	AdminNote      string  `json:"admin_note"`
 }
 
@@ -342,12 +421,7 @@ func (h *FuelHandler) ApproveFuelRequest(c *gin.Context) {
 
 	var input ApproveFuelInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Please provide approved amount"})
-		return
-	}
-
-	if input.AmountApproved <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Approved amount must be greater than zero"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Please provide valid approval data"})
 		return
 	}
 
@@ -360,14 +434,59 @@ func (h *FuelHandler) ApproveFuelRequest(c *gin.Context) {
 		return
 	}
 
+	var settings models.Settings
+	_ = h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings)
+
+	amountApproved := input.AmountApproved
+	if amountApproved <= 0 {
+		if req.FuelSource == "reserve_fuel" && req.ReserveAction == "draw" {
+			amountApproved = 0
+		} else {
+			amountApproved = req.AmountRequested
+		}
+	}
+
 	now := time.Now()
 	update := bson.M{
 		"$set": bson.M{
 			"status":          "approved",
-			"amount_approved": input.AmountApproved,
+			"amount_approved": amountApproved,
 			"admin_note":      input.AdminNote,
 			"approved_at":     now,
 		},
+	}
+
+	// Handle Reserve Fuel Inventory tracking
+	if req.FuelSource == "reserve_fuel" {
+		if req.ReserveAction == "draw" && !req.InventoryDeducted {
+			if settings.ReserveFuelBalanceLiters < req.Liters {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error":            fmt.Sprintf("Cannot approve draw request: insufficient fuel in yard tank. Available: %.1f L, Required: %.1f L.", settings.ReserveFuelBalanceLiters, req.Liters),
+					"available_liters": settings.ReserveFuelBalanceLiters,
+				})
+				return
+			}
+			before := settings.ReserveFuelBalanceLiters
+			after := before - req.Liters
+			if after < 0 {
+				after = 0
+			}
+			_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+				"$set": bson.M{"reserve_fuel_balance_liters": after, "updated_at": now},
+			})
+			update["$set"].(bson.M)["reserve_balance_before"] = before
+			update["$set"].(bson.M)["reserve_balance_after"] = after
+			update["$set"].(bson.M)["inventory_deducted"] = true
+		} else if req.ReserveAction == "procure" && !req.InventoryAdded {
+			before := settings.ReserveFuelBalanceLiters
+			after := before + req.Liters
+			_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+				"$set": bson.M{"reserve_fuel_balance_liters": after, "updated_at": now},
+			})
+			update["$set"].(bson.M)["reserve_balance_before"] = before
+			update["$set"].(bson.M)["reserve_balance_after"] = after
+			update["$set"].(bson.M)["inventory_added"] = true
+		}
 	}
 
 	_, err = h.DB.FuelRequests.UpdateOne(ctx, bson.M{"_id": objID}, update)
@@ -379,14 +498,26 @@ func (h *FuelHandler) ApproveFuelRequest(c *gin.Context) {
 	userName := c.GetString("fullName")
 	userIDStr := c.GetString("userID")
 
+	auditDetail := fmt.Sprintf("Approved: %.0f ETB, Note: %s", amountApproved, input.AdminNote)
+	if req.FuelSource == "reserve_fuel" {
+		if req.ReserveAction == "draw" {
+			auditDetail = fmt.Sprintf("Approved draw of %.1f L from yard tank for truck %s", req.Liters, req.TruckPlate)
+		} else {
+			auditDetail = fmt.Sprintf("Approved procurement of %.1f L for yard tank (%.0f ETB)", req.Liters, amountApproved)
+		}
+	}
+
 	h.LogAudit(ctx, userIDStr, userName, "Approved Fuel Request", "FuelRequest", req.ID.Hex(),
-		fmt.Sprintf("Requested: %.0f ETB", req.AmountRequested),
-		fmt.Sprintf("Approved: %.0f ETB, Note: %s", input.AmountApproved, input.AdminNote))
+		fmt.Sprintf("Requested: %.0f ETB (%.1f L)", req.AmountRequested, req.Liters),
+		auditDetail)
 
 	h.CreateNotification(ctx, req.DriverID, "driver", fmt.Sprintf("Fuel Request %s Approved", req.RequestNumber),
-		fmt.Sprintf("Your request was approved for %.0f ETB. Note: %s", input.AmountApproved, input.AdminNote), "fuel_approved")
+		auditDetail, "fuel_approved")
 
-	c.JSON(http.StatusOK, gin.H{"message": "Fuel request approved successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Fuel request approved successfully",
+		"status":  "approved",
+	})
 }
 
 type RejectFuelInput struct {
@@ -421,6 +552,20 @@ func (h *FuelHandler) RejectFuelRequest(c *gin.Context) {
 			"status":     "rejected",
 			"admin_note": input.AdminNote,
 		},
+	}
+
+	// Rollback inventory changes if this request previously deducted or added fuel
+	if req.InventoryDeducted && req.Liters > 0 {
+		_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+			"$inc": bson.M{"reserve_fuel_balance_liters": req.Liters},
+		})
+		update["$set"].(bson.M)["inventory_deducted"] = false
+	}
+	if req.InventoryAdded && req.Liters > 0 {
+		_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+			"$inc": bson.M{"reserve_fuel_balance_liters": -req.Liters},
+		})
+		update["$set"].(bson.M)["inventory_added"] = false
 	}
 
 	_, err = h.DB.FuelRequests.UpdateOne(ctx, bson.M{"_id": objID}, update)
@@ -469,30 +614,33 @@ func (h *FuelHandler) MarkFuelPaid(c *gin.Context) {
 		paidAmount = req.AmountRequested
 	}
 
-	// 1. Create linked Expense
-	expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
-	expense := models.Expense{
-		ID:            bson.NewObjectID(),
-		ExpenseNumber: expNumber,
-		TruckID:       req.TruckID,
-		TruckPlate:    req.TruckPlate,
-		DriverID:      req.DriverID,
-		DriverName:    req.DriverName,
-		FuelRequestID: req.ID.Hex(),
-		ExpenseType:   "fuel",
-		Amount:        paidAmount,
-		Date:          now,
-		Description:   fmt.Sprintf("Fuel disbursed for %s (%s)", req.DriverName, req.Reason),
-		ReceiptNumber: fmt.Sprintf("FUEL-%s", req.RequestNumber),
-		ReceiptURL:    req.ReceiptURL,
-		Status:        "active",
-		CreatedAt:     now,
-	}
+	// 1. Create linked Expense if it's a gas station or Step 1 procurement
+	var expNumber string
+	var linkedExpenseID string
+	// If it's a Step 2 draw request, no cash disbursement is made (fuel pumped from internal stock)
+	if req.FuelSource != "reserve_fuel" || req.ReserveAction == "procure" {
+		expNumber = h.GenerateNextNumber(ctx, "expenses", "EX")
+		expense := models.Expense{
+			ID:            bson.NewObjectID(),
+			ExpenseNumber: expNumber,
+			TruckID:       req.TruckID,
+			TruckPlate:    req.TruckPlate,
+			DriverID:      req.DriverID,
+			DriverName:    req.DriverName,
+			FuelRequestID: req.ID.Hex(),
+			ExpenseType:   "fuel",
+			Amount:        paidAmount,
+			Date:          now,
+			Description:   fmt.Sprintf("Fuel disbursed for %s (%s)", req.DriverName, req.Reason),
+			ReceiptNumber: fmt.Sprintf("FUEL-%s", req.RequestNumber),
+			ReceiptURL:    req.ReceiptURL,
+			Status:        "active",
+			CreatedAt:     now,
+		}
 
-	_, err = h.DB.Expenses.InsertOne(ctx, expense)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create linked fuel expense"})
-		return
+		if _, err := h.DB.Expenses.InsertOne(ctx, expense); err == nil {
+			linkedExpenseID = expense.ID.Hex()
+		}
 	}
 
 	// 2. Update Fuel Request to paid
@@ -501,8 +649,37 @@ func (h *FuelHandler) MarkFuelPaid(c *gin.Context) {
 			"status":            "paid",
 			"amount_approved":   paidAmount,
 			"paid_at":           now,
-			"linked_expense_id": expense.ID.Hex(),
+			"linked_expense_id": linkedExpenseID,
 		},
+	}
+
+	// 3. Ensure Reserve Fuel inventory is tracked if not already done during approval
+	if req.FuelSource == "reserve_fuel" {
+		var settings models.Settings
+		_ = h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings)
+
+		if req.ReserveAction == "draw" && !req.InventoryDeducted {
+			before := settings.ReserveFuelBalanceLiters
+			after := before - req.Liters
+			if after < 0 {
+				after = 0
+			}
+			_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+				"$set": bson.M{"reserve_fuel_balance_liters": after, "updated_at": now},
+			})
+			update["$set"].(bson.M)["reserve_balance_before"] = before
+			update["$set"].(bson.M)["reserve_balance_after"] = after
+			update["$set"].(bson.M)["inventory_deducted"] = true
+		} else if req.ReserveAction == "procure" && !req.InventoryAdded {
+			before := settings.ReserveFuelBalanceLiters
+			after := before + req.Liters
+			_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+				"$set": bson.M{"reserve_fuel_balance_liters": after, "updated_at": now},
+			})
+			update["$set"].(bson.M)["reserve_balance_before"] = before
+			update["$set"].(bson.M)["reserve_balance_after"] = after
+			update["$set"].(bson.M)["inventory_added"] = true
+		}
 	}
 	_, _ = h.DB.FuelRequests.UpdateOne(ctx, bson.M{"_id": objID}, update)
 
@@ -672,6 +849,20 @@ func (h *FuelHandler) DeleteFuelRequest(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	var req models.FuelRequest
+	if err := h.DB.FuelRequests.FindOne(ctx, bson.M{"_id": objID}).Decode(&req); err == nil {
+		if req.InventoryDeducted && req.Liters > 0 {
+			_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+				"$inc": bson.M{"reserve_fuel_balance_liters": req.Liters},
+			})
+		}
+		if req.InventoryAdded && req.Liters > 0 {
+			_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+				"$inc": bson.M{"reserve_fuel_balance_liters": -req.Liters},
+			})
+		}
+	}
+
 	_, err = h.DB.FuelRequests.DeleteOne(ctx, bson.M{"_id": objID})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete fuel request"})
@@ -679,5 +870,72 @@ func (h *FuelHandler) DeleteFuelRequest(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Fuel request deleted"})
+}
+
+func (h *FuelHandler) GetReserveInventory(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var settings models.Settings
+	_ = h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings)
+
+	balance := settings.ReserveFuelBalanceLiters
+	capacity := settings.ReserveFuelCapacityLiters
+	if capacity <= 0 {
+		capacity = 10000.0
+	}
+	lowThreshold := settings.ReserveFuelLowThreshold
+	if lowThreshold <= 0 {
+		lowThreshold = 1500.0
+	}
+
+	percentage := 0.0
+	if capacity > 0 {
+		percentage = (balance / capacity) * 100.0
+		if percentage > 100.0 {
+			percentage = 100.0
+		} else if percentage < 0.0 {
+			percentage = 0.0
+		}
+	}
+
+	status := "healthy"
+	if balance <= 0 {
+		status = "empty"
+	} else if balance <= lowThreshold {
+		status = "low"
+	}
+
+	// Fetch recent Step 1 procurements
+	procureOpts := options.Find().SetSort(bson.D{{Key: "requested_at", Value: -1}}).SetLimit(5)
+	pCursor, err := h.DB.FuelRequests.Find(ctx, bson.M{
+		"fuel_source":    "reserve_fuel",
+		"reserve_action": "procure",
+	}, procureOpts)
+	recentProcures := make([]models.FuelRequest, 0)
+	if err == nil {
+		_ = pCursor.All(ctx, &recentProcures)
+	}
+
+	// Fetch recent Step 2 draws
+	drawOpts := options.Find().SetSort(bson.D{{Key: "requested_at", Value: -1}}).SetLimit(5)
+	dCursor, err := h.DB.FuelRequests.Find(ctx, bson.M{
+		"fuel_source":    "reserve_fuel",
+		"reserve_action": "draw",
+	}, drawOpts)
+	recentDraws := make([]models.FuelRequest, 0)
+	if err == nil {
+		_ = dCursor.All(ctx, &recentDraws)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"balance_liters":       balance,
+		"capacity_liters":      capacity,
+		"low_threshold_liters": lowThreshold,
+		"percentage":           percentage,
+		"status":               status,
+		"recent_procurements":  recentProcures,
+		"recent_draws":         recentDraws,
+	})
 }
 

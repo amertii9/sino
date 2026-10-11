@@ -76,12 +76,12 @@ export const TruckManagement = () => {
   };
 
   const handleDeleteTruck = async (id, plate) => {
-    if (!confirm(`Are you sure you want to permanently delete truck ${plate}?`)) return;
+    if (!confirm(t('confirm_delete_truck', 'Are you sure you want to permanently delete this truck?'))) return;
     try {
       await api.delete(`/trucks/${id}`);
       loadData();
     } catch (err) {
-      alert('Delete failed: ' + err.message);
+      alert(err.message);
     }
   };
 
@@ -240,7 +240,7 @@ export const TruckManagement = () => {
                 <label className="block text-slate-300 mb-1 font-semibold">{t('truck_plate', 'Plate Number')}:</label>
                 <input
                   type="text"
-                  placeholder="e.g. ET-3-99887"
+                  placeholder={t('truck_plate_ph', 'e.g. ET-3-99887')}
                   value={formData.plate_number}
                   onChange={e => setFormData({ ...formData, plate_number: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono"
@@ -253,7 +253,7 @@ export const TruckManagement = () => {
                   <label className="block text-slate-300 mb-1 font-semibold">{t('truck_model', 'Make & Model')}:</label>
                   <input
                     type="text"
-                    placeholder="e.g. Sinotruk Howo 371"
+                    placeholder={t('truck_model_ph', 'e.g. Sinotruk Howo 371')}
                     value={formData.model}
                     onChange={e => setFormData({ ...formData, model: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -281,10 +281,10 @@ export const TruckManagement = () => {
                     onChange={e => setFormData({ ...formData, type: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                   >
-                    <option value="Heavy Dump Tipper">Heavy Dump Tipper</option>
-                    <option value="Medium Dump Truck">Medium Dump Truck</option>
-                    <option value="Trailer Flatbed">Trailer Flatbed</option>
-                    <option value="Tanker Truck">Tanker Truck</option>
+                    <option value="Heavy Dump Tipper">{t('heavy_dump_tipper_opt', 'Heavy Dump Tipper')}</option>
+                    <option value="Medium Dump Truck">{t('medium_dump_truck_opt', 'Medium Dump Truck')}</option>
+                    <option value="Trailer Flatbed">{t('trailer_flatbed_opt', 'Trailer Flatbed')}</option>
+                    <option value="Tanker Truck">{t('tanker_truck_opt', 'Tanker Truck')}</option>
                   </select>
                 </div>
                 <div>
@@ -295,9 +295,9 @@ export const TruckManagement = () => {
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                   >
                     <option value="available">{t('active_trucks', 'Available')}</option>
-                    <option value="working">Working</option>
-                    <option value="maintenance">Maintenance</option>
-                    <option value="inactive">Inactive</option>
+                    <option value="working">{t('status_working_opt', 'Working')}</option>
+                    <option value="maintenance">{t('status_maintenance_opt', 'Maintenance')}</option>
+                    <option value="inactive">{t('status_inactive_opt', 'Inactive')}</option>
                   </select>
                 </div>
               </div>

@@ -141,11 +141,15 @@ export const PaymentsManagement = ({ onNavigate }) => {
   // Open Approval Modal
   const openApproveModal = (trip) => {
     setApproveModalTrip(trip);
+    const grossTotal = (trip.gross_revenue && trip.gross_revenue > 0)
+      ? trip.gross_revenue
+      : (trip.paid_amount > 0 ? trip.paid_amount : trip.total_revenue);
+
     setApprovalForm({
       payment_method: trip.payment_method || 'cbe',
       payment_ref: trip.payment_ref || '',
       payer_name: trip.payer_name || trip.dumping_site_name || '',
-      paid_amount: trip.paid_amount > 0 ? trip.paid_amount : trip.total_revenue,
+      paid_amount: grossTotal,
       paid_at: new Date().toISOString().slice(0, 10),
       payment_notes: trip.payment_notes || '',
     });
@@ -173,15 +177,19 @@ export const PaymentsManagement = ({ onNavigate }) => {
 
   // Quick 1-Click Approve (Default CBE)
   const handleQuickApprove = async (trip) => {
-    if (!window.confirm(`Quick approve payment of ${formatCurrency(trip.total_revenue)} for Trip #${trip.trip_number}?`)) {
+    if (!window.confirm(t('confirm_quick_approve_payment', 'Quick approve payment for this trip?'))) {
       return;
     }
 
     try {
       setSubmittingAction(true);
+      const grossTotal = (trip.gross_revenue && trip.gross_revenue > 0)
+        ? trip.gross_revenue
+        : trip.total_revenue;
+
       await api.patch(`/payments/${trip.id}/approve`, {
         payment_method: 'cbe',
-        paid_amount: trip.total_revenue,
+        paid_amount: grossTotal,
         paid_at: new Date().toISOString().slice(0, 10),
         payment_notes: 'Quick approved by admin',
       });
@@ -196,7 +204,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
 
   // Revert payment back to pending
   const handleRevertPayment = async (trip) => {
-    if (!window.confirm(`Revert payment for Trip #${trip.trip_number} back to PENDING? This will remove it from realized dashboard revenue.`)) {
+    if (!window.confirm(t('confirm_revert_payment_pending', 'Revert payment for this trip back to PENDING? This will remove it from realized dashboard revenue.'))) {
       return;
     }
 
@@ -267,7 +275,10 @@ export const PaymentsManagement = ({ onNavigate }) => {
   const selectedTotalAmount = useMemo(() => {
     return payments
       .filter((p) => selectedTripIds.includes(p.id))
-      .reduce((sum, p) => sum + (p.total_revenue || 0), 0);
+      .reduce((sum, p) => {
+        const gross = (p.gross_revenue && p.gross_revenue > 0) ? p.gross_revenue : (p.total_revenue || 0);
+        return sum + gross;
+      }, 0);
   }, [payments, selectedTripIds]);
 
   return (
@@ -604,7 +615,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
                 <th className="py-3 px-4">{t('col_trip_date', 'Trip & Date')}</th>
                 <th className="py-3 px-4">{t('col_truck_driver', 'Truck / Driver')}</th>
                 <th className="py-3 px-4">{t('col_route_material', 'Route & Material')}</th>
-                <th className="py-3 px-4 text-right">{t('col_amount', 'Amount (ETB)')}</th>
+                <th className="py-3 px-4 text-right">{t('col_gross_payment', 'Payment to Approve (Gross ETB)')}</th>
                 <th className="py-3 px-4">{t('col_payment_status', 'Payment Status')}</th>
                 <th className="py-3 px-4">{t('col_payment_details', 'Payment Details')}</th>
                 <th className="py-3 px-4 text-right">{t('actions', 'Actions')}</th>
@@ -697,14 +708,20 @@ export const PaymentsManagement = ({ onNavigate }) => {
                         </div>
                       </td>
 
-                      {/* Amount */}
+                      {/* Payment to Approve (Gross Amount) */}
                       <td className="py-3.5 px-4 text-right font-mono">
-                        <div className="font-bold text-sm text-white">
-                          {formatCurrency(p.total_revenue)}
+                        <div className="font-bold text-sm text-amber-400">
+                          {formatCurrency((p.gross_revenue && p.gross_revenue > 0) ? p.gross_revenue : (p.paid_amount || p.total_revenue))}
+                        </div>
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider font-sans font-semibold">
+                          {isPaid ? t('gross_received', 'Gross Received') : t('gross_to_approve', 'Gross To Approve')}
                         </div>
                         {p.total_additional_fees > 0 && (
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            Gross: {formatCurrency(p.gross_revenue)} (Fees: -{formatCurrency(p.total_additional_fees)})
+                          <div className="text-[10px] text-rose-300/90 mt-1 border-t border-slate-700/50 pt-0.5">
+                            <span>- {t('expenses_deducted', 'Expenses:')} {formatCurrency(p.total_additional_fees)}</span>
+                            <div className="text-slate-400 font-mono">
+                              Net: {formatCurrency(p.net_revenue > 0 ? p.net_revenue : (((p.gross_revenue && p.gross_revenue > 0) ? p.gross_revenue : p.total_revenue) - p.total_additional_fees))}
+                            </div>
                           </div>
                         )}
                       </td>
@@ -718,7 +735,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
                               <span>{t('status_paid', 'Fully Paid')}</span>
                             </span>
                             <div className="text-[10px] text-emerald-400/80 mt-1 font-semibold flex items-center gap-1">
-                              <span>Reflected on Dashboard</span>
+                              <span>{t('reflected_on_dashboard', 'Reflected on Dashboard')}</span>
                             </div>
                           </div>
                         ) : (
@@ -846,23 +863,41 @@ export const PaymentsManagement = ({ onNavigate }) => {
             {/* Trip Contract Summary Card */}
             <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700 space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400">Route & Cargo:</span>
+                <span className="text-slate-400">{t('route_and_cargo_label', 'Route & Cargo:')}</span>
                 <span className="text-white font-semibold">
                   {approveModalTrip.loading_site_name} → {approveModalTrip.dumping_site_name} ({approveModalTrip.material_name})
                 </span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400">Driver & Date:</span>
+                <span className="text-slate-400">{t('driver_and_date_label', 'Driver & Date:')}</span>
                 <span className="text-slate-300">
                   {approveModalTrip.driver_name} • {formatDate(approveModalTrip.date)}
                 </span>
               </div>
+              {/* PRIMARY: Gross Amount */}
               <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-700/60">
-                <span className="text-slate-300 font-bold">Total Billable Receivable:</span>
-                <span className="text-emerald-400 font-mono font-black text-sm">
-                  {formatCurrency(approveModalTrip.total_revenue)}
+                <span className="text-amber-300 font-bold">{t('gross_billed_amount', 'Gross Customer Billing:')}</span>
+                <span className="text-amber-400 font-mono font-black text-sm">
+                  {formatCurrency((approveModalTrip.gross_revenue && approveModalTrip.gross_revenue > 0) ? approveModalTrip.gross_revenue : approveModalTrip.total_revenue)}
                 </span>
               </div>
+              {/* Separate Deductions / Expenses Listed Below */}
+              {approveModalTrip.total_additional_fees > 0 && (
+                <div className="flex justify-between items-center text-xs text-rose-300/90 pl-2">
+                  <span>- {t('additional_fees_expenses', 'Driver Fees & Route Expenses:')}</span>
+                  <span className="font-mono font-semibold">
+                    -{formatCurrency(approveModalTrip.total_additional_fees)}
+                  </span>
+                </div>
+              )}
+              {approveModalTrip.total_additional_fees > 0 && (
+                <div className="flex justify-between items-center text-xs text-slate-400 pl-2 pt-0.5 border-t border-slate-700/40">
+                  <span>{t('net_receivable_after_fees', 'Net After Driver Expenses:')}</span>
+                  <span className="text-slate-300 font-mono font-bold">
+                    {formatCurrency(approveModalTrip.total_revenue || approveModalTrip.net_revenue)}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Form */}
@@ -895,7 +930,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t('paid_amount_etb', 'Amount Received (ETB) *')}
+                    {t('gross_paid_amount_etb', 'Gross Amount Received from Customer (ETB) *')}
                   </label>
                   <input
                     type="number"
@@ -905,6 +940,9 @@ export const PaymentsManagement = ({ onNavigate }) => {
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-emerald-400 font-mono font-bold rounded-xl text-sm outline-none focus:border-amber-500"
                     required
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {t('gross_approval_note', 'Company receives this full gross amount. Incurred driver expenses and route fees will be deducted.')}
+                  </p>
                 </div>
 
                 <div>
@@ -928,7 +966,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. CBE FT23098321 or Bank Slip # or Check #1002"
+                  placeholder={t('payment_ref_sample_ph', 'e.g. CBE FT23098321 or Bank Slip # or Check #1002')}
                   value={approvalForm.payment_ref}
                   onChange={(e) => setApprovalForm({ ...approvalForm, payment_ref: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs outline-none focus:border-amber-500 font-mono"
@@ -942,7 +980,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Midroc Construction, Sur Construction, Client Name"
+                  placeholder={t('payer_company_ph', 'e.g. Midroc Construction, Sur Construction, Client Name')}
                   value={approvalForm.payer_name}
                   onChange={(e) => setApprovalForm({ ...approvalForm, payer_name: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs outline-none focus:border-amber-500"
@@ -956,7 +994,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Fully cleared in branch, checked against bank statement"
+                  placeholder={t('payment_audit_notes_ph', 'e.g. Fully cleared in branch, checked against bank statement')}
                   value={approvalForm.payment_notes}
                   onChange={(e) => setApprovalForm({ ...approvalForm, payment_notes: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs outline-none focus:border-amber-500"
@@ -967,7 +1005,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
               <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center space-x-2 text-[11px] text-emerald-300">
                 <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>
-                  Approving this will instantly reflect this trip's revenue in the <b>Main Dashboard</b> (Today & Monthly revenue, net profit, and analytics).
+                  {t('approve_reflect_dashboard_note', "Approving this will instantly reflect this trip's revenue in the Main Dashboard (Today & Monthly revenue, net profit, and analytics).")}
                 </span>
               </div>
 
@@ -1023,13 +1061,13 @@ export const PaymentsManagement = ({ onNavigate }) => {
             {/* Total Highlight */}
             <div className="p-4 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl flex items-center justify-between">
               <div>
-                <div className="text-[11px] text-emerald-400 font-bold uppercase">Total Batch Revenue</div>
+                <div className="text-[11px] text-emerald-400 font-bold uppercase">{t('total_batch_revenue', 'Total Batch Revenue')}</div>
                 <div className="text-2xl font-black text-white font-mono mt-0.5">
                   {formatCurrency(selectedTotalAmount)}
                 </div>
               </div>
               <span className="px-3 py-1 bg-emerald-500 text-slate-950 font-black rounded-xl text-xs">
-                {selectedTripIds.length} Trips
+                {selectedTripIds.length} {t('menu_trips', 'Trips')}
               </span>
             </div>
 
@@ -1063,7 +1101,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. CBE Batch Transfer Ref #9932"
+                  placeholder={t('batch_ref_ph', 'e.g. CBE Batch Transfer Ref #9932')}
                   value={batchForm.payment_ref}
                   onChange={(e) => setBatchForm({ ...batchForm, payment_ref: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs outline-none focus:border-amber-500 font-mono"
@@ -1077,7 +1115,7 @@ export const PaymentsManagement = ({ onNavigate }) => {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Client Company"
+                    placeholder={t('ph_client_company_example', 'e.g. Client Company')}
                     value={batchForm.payer_name}
                     onChange={(e) => setBatchForm({ ...batchForm, payer_name: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs outline-none focus:border-amber-500"
@@ -1129,8 +1167,8 @@ export const PaymentsManagement = ({ onNavigate }) => {
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">Payment Receipt Audit</h3>
-                  <p className="text-xs text-slate-400 font-mono">Trip #{viewModalTrip.trip_number}</p>
+                  <h3 className="font-bold text-base text-white">{t('payment_receipt_audit', 'Payment Receipt Audit')}</h3>
+                  <p className="text-xs text-slate-400 font-mono">{t('trip_prefix', 'Trip')} #{viewModalTrip.trip_number}</p>
                 </div>
               </div>
               <button
@@ -1144,42 +1182,56 @@ export const PaymentsManagement = ({ onNavigate }) => {
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Payment Status:</span>
+                  <span className="text-slate-400">{t('payment_status_label', 'Payment Status:')}</span>
                   <span className="text-emerald-400 font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Fully Paid & Realized
+                    <CheckCircle2 className="w-3.5 h-3.5" /> {t('fully_paid_realized', 'Fully Paid & Realized')}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Payment Method:</span>
+                  <span className="text-slate-400">{t('payment_method_label', 'Payment Method:')}</span>
                   <span className="text-white font-bold uppercase">{viewModalTrip.payment_method || 'CBE'}</span>
                 </div>
                 {viewModalTrip.payment_ref && (
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Transaction Ref:</span>
+                    <span className="text-slate-400">{t('transaction_ref_label', 'Transaction Ref:')}</span>
                     <span className="text-amber-400 font-mono font-bold">{viewModalTrip.payment_ref}</span>
                   </div>
                 )}
                 {viewModalTrip.payer_name && (
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Payer Name:</span>
+                    <span className="text-slate-400">{t('payer_name_label', 'Payer Name:')}</span>
                     <span className="text-white font-semibold">{viewModalTrip.payer_name}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Amount Paid:</span>
+                  <span className="text-slate-400">{t('amount_paid_label', 'Gross Amount Received:')}</span>
                   <span className="text-emerald-400 font-mono font-black text-sm">
-                    {formatCurrency(viewModalTrip.paid_amount || viewModalTrip.total_revenue)}
+                    {formatCurrency(viewModalTrip.paid_amount || viewModalTrip.gross_revenue || viewModalTrip.total_revenue)}
                   </span>
                 </div>
+                {viewModalTrip.total_additional_fees > 0 && (
+                  <div className="flex justify-between text-xs text-rose-300">
+                    <span>{t('additional_fees_expenses', 'Driver Fees & Route Expenses Deducted:')}</span>
+                    <span className="font-mono font-bold">-{formatCurrency(viewModalTrip.total_additional_fees)}</span>
+                  </div>
+                )}
+                {viewModalTrip.total_additional_fees > 0 && (
+                  <div className="flex justify-between text-xs text-slate-300 pt-1 border-t border-slate-700/60">
+                    <span>{t('net_receivable_after_fees', 'Net Company Revenue:')}</span>
+                    <span className="text-white font-mono font-bold">
+                      {formatCurrency(viewModalTrip.net_revenue > 0 ? viewModalTrip.net_revenue : ((viewModalTrip.paid_amount || viewModalTrip.gross_revenue || viewModalTrip.total_revenue) - viewModalTrip.total_additional_fees))}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Payment Date:</span>
+                  <span className="text-slate-400">{t('payment_date_label', 'Payment Date:')}</span>
                   <span className="text-slate-300">
                     {viewModalTrip.paid_at ? formatDate(viewModalTrip.paid_at) : 'N/A'}
                   </span>
                 </div>
                 {viewModalTrip.paid_by && (
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Approved By:</span>
+                    <span className="text-slate-400">{t('approved_by_label', 'Approved By:')}</span>
                     <span className="text-slate-200 font-semibold">{viewModalTrip.paid_by}</span>
                   </div>
                 )}
@@ -1192,19 +1244,19 @@ export const PaymentsManagement = ({ onNavigate }) => {
 
               <div className="p-3 bg-slate-800/40 rounded-2xl border border-slate-800 space-y-1.5 text-[11px]">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Truck Plate:</span>
+                  <span className="text-slate-500">{t('truck_plate_field_label', 'Truck Plate:')}</span>
                   <span className="text-slate-300 font-semibold">{viewModalTrip.truck_plate}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Driver:</span>
+                  <span className="text-slate-500">{t('driver_field_colon', 'Driver:')}</span>
                   <span className="text-slate-300">{viewModalTrip.driver_name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Route:</span>
+                  <span className="text-slate-500">{t('route_col', 'Route')}:</span>
                   <span className="text-slate-300">{viewModalTrip.loading_site_name} → {viewModalTrip.dumping_site_name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Material:</span>
+                  <span className="text-slate-500">{t('material_col', 'Material')}:</span>
                   <span className="text-slate-300">{viewModalTrip.material_name} ({viewModalTrip.quantity} {viewModalTrip.unit})</span>
                 </div>
               </div>

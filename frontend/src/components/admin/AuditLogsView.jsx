@@ -72,12 +72,12 @@ export const AuditLogsView = () => {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
               <tr>
-                <th className="py-3 px-3">Timestamp</th>
-                <th className="py-3 px-3">Actor / User</th>
-                <th className="py-3 px-3">Action</th>
-                <th className="py-3 px-3">Target Entity</th>
-                <th className="py-3 px-3">Previous State</th>
-                <th className="py-3 px-3">New / Recorded State</th>
+                <th className="py-3 px-3">{t('col_timestamp', 'Timestamp')}</th>
+                <th className="py-3 px-3">{t('actor_user_header', 'Actor / User')}</th>
+                <th className="py-3 px-3">{t('col_action', 'Action')}</th>
+                <th className="py-3 px-3">{t('target_entity_header', 'Target Entity')}</th>
+                <th className="py-3 px-3">{t('previous_state_header', 'Previous State')}</th>
+                <th className="py-3 px-3">{t('new_recorded_state_header', 'New / Recorded State')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">

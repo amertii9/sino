@@ -14,17 +14,19 @@ import {
   Save,
   KeyRound,
   FileText,
-  Mail
+  Mail,
+  Globe
 } from 'lucide-react';
 
 export const ProfileModal = ({ isOpen, onClose }) => {
   const { user, driver, truck, role, updateProfile } = useAuth();
-  const { t } = useLanguage();
+  const { t, language, setLanguage, languages } = useLanguage();
 
   const [formData, setFormData] = useState({
     full_name: user?.full_name || '',
     phone: user?.phone || driver?.phone || '',
     avatar: user?.avatar || '',
+    preferred_language: user?.preferred_language || language || 'en',
     license_number: driver?.license_number || '',
     notes: driver?.notes || '',
     current_password: '',
@@ -71,7 +73,12 @@ export const ProfileModal = ({ isOpen, onClose }) => {
         avatar: formData.avatar,
         license_number: formData.license_number,
         notes: formData.notes,
+        preferred_language: formData.preferred_language,
       };
+
+      if (formData.preferred_language !== language) {
+        setLanguage(formData.preferred_language, user?.id);
+      }
 
       if (isChangingPassword && formData.new_password) {
         payload.current_password = formData.current_password;
@@ -85,7 +92,7 @@ export const ProfileModal = ({ isOpen, onClose }) => {
         onClose();
       }, 1200);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to update profile');
+      setErrorMsg(err.message || t('failed_to_update_profile', 'Failed to update profile'));
     } finally {
       setLoading(false);
     }
@@ -164,7 +171,7 @@ export const ProfileModal = ({ isOpen, onClose }) => {
                 type="text"
                 value={formData.full_name}
                 onChange={e => setFormData({ ...formData, full_name: e.target.value })}
-                placeholder="Your full name"
+                placeholder={t('full_name_ph', 'Your full name')}
                 className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:border-amber-500"
                 required
               />
@@ -178,10 +185,31 @@ export const ProfileModal = ({ isOpen, onClose }) => {
                 type="tel"
                 value={formData.phone}
                 onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+251 911 000 000"
+                placeholder={t('phone_number_ph', '+251 911 000 000')}
                 className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:border-amber-500"
                 required
               />
+            </div>
+
+            {/* Language Selector */}
+            <div>
+              <label className="block text-slate-300 mb-1 font-semibold flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-amber-400" /> {t('preferred_language_label', 'Preferred Language:')}
+              </label>
+              <select
+                value={formData.preferred_language}
+                onChange={e => {
+                  setFormData({ ...formData, preferred_language: e.target.value });
+                  setLanguage(e.target.value, user?.id);
+                }}
+                className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:border-amber-500"
+              >
+                {languages.map(lang => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.native} ({lang.label})
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Driver specific info */}
@@ -195,7 +223,7 @@ export const ProfileModal = ({ isOpen, onClose }) => {
                     type="text"
                     value={formData.license_number}
                     onChange={e => setFormData({ ...formData, license_number: e.target.value })}
-                    placeholder="DL-AA-123456"
+                    placeholder={t('license_number_ph', 'DL-AA-123456')}
                     className="w-full py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -208,7 +236,7 @@ export const ProfileModal = ({ isOpen, onClose }) => {
                     rows="2"
                     value={formData.notes}
                     onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Certifications, emergency contact, experience..."
+                    placeholder={t('driver_notes_ph', 'Certifications, emergency contact, experience...')}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white resize-none"
                   />
                 </div>
@@ -233,7 +261,7 @@ export const ProfileModal = ({ isOpen, onClose }) => {
                   <label className="block text-slate-300 mb-1 font-semibold">{t('current_password', 'Current Password:')}</label>
                   <input
                     type="password"
-                    placeholder="••••••••"
+                    placeholder={t('password_ph', '••••••••')}
                     value={formData.current_password}
                     onChange={e => setFormData({ ...formData, current_password: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-white"
@@ -245,7 +273,7 @@ export const ProfileModal = ({ isOpen, onClose }) => {
                     <label className="block text-slate-300 mb-1 font-semibold">{t('new_password', 'New Password:')}</label>
                     <input
                       type="password"
-                      placeholder="Min 6 characters"
+                      placeholder={t('new_password_ph', 'Min 6 characters')}
                       value={formData.new_password}
                       onChange={e => setFormData({ ...formData, new_password: e.target.value })}
                       className="w-full py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-white"
@@ -255,7 +283,7 @@ export const ProfileModal = ({ isOpen, onClose }) => {
                     <label className="block text-slate-300 mb-1 font-semibold">{t('confirm_password', 'Confirm Password:')}</label>
                     <input
                       type="password"
-                      placeholder="Repeat password"
+                      placeholder={t('confirm_password_ph', 'Repeat password')}
                       value={formData.confirm_password}
                       onChange={e => setFormData({ ...formData, confirm_password: e.target.value })}
                       className="w-full py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-white"

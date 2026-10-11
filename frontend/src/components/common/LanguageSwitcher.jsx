@@ -3,7 +3,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { Globe, Check, ChevronDown } from 'lucide-react';
 
 export const LanguageSwitcher = ({ variant = 'default' }) => {
-  const { language, setLanguage, languages, currentLanguage } = useLanguage();
+  const { language, setLanguage, languages, currentLanguage, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -38,7 +38,7 @@ export const LanguageSwitcher = ({ variant = 'default' }) => {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-50 py-1.5 divide-y divide-slate-800">
           <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Select Language
+            {t('select_language_title', 'Select Language')}
           </div>
 
           <div className="py-1">

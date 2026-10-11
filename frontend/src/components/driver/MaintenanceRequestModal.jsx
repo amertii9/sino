@@ -31,9 +31,9 @@ export const MaintenanceRequestModal = ({ isOpen, onClose, onSuccess }) => {
   ];
 
   const priorities = [
-    { id: 'normal', label: 'Routine / Normal' },
-    { id: 'high', label: 'High Priority' },
-    { id: 'urgent', label: 'Urgent / Breakdown' },
+    { id: 'normal', label: t('priority_normal_opt', 'Routine / Normal') },
+    { id: 'high', label: t('priority_high_opt', 'High Priority') },
+    { id: 'urgent', label: t('priority_urgent_opt', 'Urgent / Breakdown') },
   ];
 
   const [maintTypes, setMaintTypes] = useState(DEFAULT_MAINT_TYPES);
@@ -249,7 +249,7 @@ export const MaintenanceRequestModal = ({ isOpen, onClose, onSuccess }) => {
               <div>
                 <label className="block text-xs font-bold text-slate-200 mb-1.5 flex items-center justify-between">
                   <span>{t('maint_issue_type', 'What is the issue / maintenance required?')}</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Tap to select preset issue</span>
+                  <span className="text-[10px] text-slate-400 font-normal">{t('tap_to_select_issue', 'Tap to select preset issue')}</span>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {maintTypes.map(mt => {

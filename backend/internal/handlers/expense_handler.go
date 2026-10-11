@@ -331,7 +331,12 @@ func (h *ExpenseHandler) syncTripExpenses(ctx context.Context, tripIDStr string)
 
 	gross := trip.GrossRevenue
 	if gross <= 0 {
-		if trip.PricingMethod == "lump_sum" {
+		if trip.IsSplitDrop {
+			gross = trip.TransitRevenue + trip.DestinationRevenue
+			if gross <= 0 && trip.LumpSum > 0 {
+				gross = trip.LumpSum
+			}
+		} else if trip.PricingMethod == "lump_sum" {
 			gross = trip.LumpSum
 		} else if trip.Quantity > 0 && trip.UnitPrice > 0 {
 			gross = trip.Quantity * trip.UnitPrice

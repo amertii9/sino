@@ -82,6 +82,7 @@ func SetupRoutes(r *gin.Engine, db *database.Database, cfg *config.Config) {
 			// Fuel Requests
 			protected.POST("/fuel-requests", fuelH.RequestFuel)
 			protected.GET("/fuel-requests", fuelH.GetFuelRequests)
+			protected.GET("/fuel-requests/reserve-inventory", fuelH.GetReserveInventory)
 
 			// Maintenance Requests (Drivers & Admins)
 			protected.POST("/maintenance-requests", maintH.CreateMaintenanceRequest)
@@ -90,7 +91,9 @@ func SetupRoutes(r *gin.Engine, db *database.Database, cfg *config.Config) {
 			// Common lookups accessible to both Driver and Admin
 			protected.GET("/trucks", truckH.GetTrucks)
 			protected.GET("/sites", masterH.GetSites)
+			protected.POST("/sites", masterH.CreateSite)
 			protected.GET("/materials", masterH.GetMaterials)
+			protected.POST("/materials", masterH.CreateMaterial)
 			protected.GET("/routes", masterH.GetRoutes)
 			protected.GET("/drivers/summary", driverH.GetDriverSummary)
 			protected.GET("/notifications", extraH.GetNotifications)
@@ -156,13 +159,11 @@ func SetupRoutes(r *gin.Engine, db *database.Database, cfg *config.Config) {
 				admin.PUT("/trucks/:id", truckH.UpdateTruck)
 				admin.DELETE("/trucks/:id", truckH.DeleteTruck)
 
-				// Sites (Create, Edit, Delete)
-				admin.POST("/sites", masterH.CreateSite)
+				// Sites (Edit, Delete)
 				admin.PUT("/sites/:id", masterH.UpdateSite)
 				admin.DELETE("/sites/:id", masterH.DeleteSite)
 
-				// Materials (Create, Edit, Delete)
-				admin.POST("/materials", masterH.CreateMaterial)
+				// Materials (Edit, Delete)
 				admin.PUT("/materials/:id", masterH.UpdateMaterial)
 				admin.DELETE("/materials/:id", masterH.DeleteMaterial)
 
@@ -197,6 +198,7 @@ func SetupRoutes(r *gin.Engine, db *database.Database, cfg *config.Config) {
 				admin.PUT("/settings/fuel-presets", extraH.UpdateFuelPresets)
 				admin.PATCH("/settings/maintenance-suggestions", extraH.UpdateMaintenanceSuggestions)
 				admin.PUT("/settings/maintenance-suggestions", extraH.UpdateMaintenanceSuggestions)
+				admin.PATCH("/settings/reserve-fuel", extraH.UpdateReserveFuelSettings)
 			}
 		}
 	}

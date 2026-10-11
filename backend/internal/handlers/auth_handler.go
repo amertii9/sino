@@ -62,8 +62,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Admin shortcut
-	if strings.EqualFold(input, "admin") || strings.EqualFold(input, "admin@sino.com") || strings.EqualFold(input, "admin@fleet.com") {
+	if strings.EqualFold(input, "admin") || strings.EqualFold(input, "admin@sino.com") || strings.EqualFold(input, "admin@fleet.com") || strings.EqualFold(input, "soneschool1@gmail.com") {
 		orConditions = append(orConditions,
+			bson.M{"email": "soneschool1@gmail.com"},
+			bson.M{"role": models.RoleAdmin},
 			bson.M{"email": "admin@sino.com"},
 		)
 	}
@@ -230,8 +232,9 @@ type UpdateProfileInput struct {
 	Avatar          string `json:"avatar"`
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
-	LicenseNumber   string `json:"license_number"`
-	Notes           string `json:"notes"`
+	LicenseNumber     string `json:"license_number"`
+	Notes             string `json:"notes"`
+	PreferredLanguage string `json:"preferred_language"`
 }
 
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
@@ -274,6 +277,9 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 	if input.Avatar != "" {
 		userUpdate["avatar"] = input.Avatar
+	}
+	if input.PreferredLanguage != "" {
+		userUpdate["preferred_language"] = input.PreferredLanguage
 	}
 
 	// Password update

@@ -244,7 +244,7 @@ export const DriverManagement = () => {
                 <label className="block text-slate-300 mb-1 font-semibold">{t('full_name_label', 'Full Name')}:</label>
                 <input
                   type="text"
-                  placeholder="e.g. Dawit Tadesse"
+                  placeholder={t('ph_driver_name_example', 'e.g. Dawit Tadesse')}
                   value={formData.full_name}
                   onChange={e => setFormData({ ...formData, full_name: e.target.value })}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -258,7 +258,7 @@ export const DriverManagement = () => {
                     <label className="block text-slate-300 mb-1 font-semibold">{t('login_email', 'Email (Login)')}:</label>
                     <input
                       type="email"
-                      placeholder="dawit@fleet.com"
+                      placeholder={t('ph_driver_email_example', 'dawit@fleet.com')}
                       value={formData.email}
                       onChange={e => setFormData({ ...formData, email: e.target.value })}
                       className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -283,7 +283,7 @@ export const DriverManagement = () => {
                   <label className="block text-slate-300 mb-1 font-semibold">{t('phone_number_label', 'Phone Number')}:</label>
                   <input
                     type="tel"
-                    placeholder="+251 911 000 000"
+                    placeholder={t('phone_number_ph', '+251 911 000 000')}
                     value={formData.phone}
                     onChange={e => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -294,7 +294,7 @@ export const DriverManagement = () => {
                   <label className="block text-slate-300 mb-1 font-semibold">{t('license_number_label', 'License Number')}:</label>
                   <input
                     type="text"
-                    placeholder="DL-AA-123456"
+                    placeholder={t('license_number_ph', 'DL-AA-123456')}
                     value={formData.license_number}
                     onChange={e => setFormData({ ...formData, license_number: e.target.value })}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
@@ -341,7 +341,7 @@ export const DriverManagement = () => {
                   rows="2"
                   value={formData.notes}
                   onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Driver notes, certifications..."
+                  placeholder={t('ph_driver_notes_cert', 'Driver notes, certifications...')}
                   className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                 />
               </div>

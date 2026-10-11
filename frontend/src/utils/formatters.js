@@ -42,9 +42,9 @@ export const formatDateTime = (dateStr) => {
   }
 };
 
-export const exportToCSV = (filename, data, headers) => {
+export const exportToCSV = (filename, data, headers, noDataMsg = 'No data to export') => {
   if (!data || !data.length) {
-    alert('No data to export');
+    alert(noDataMsg);
     return;
   }
 
