@@ -330,25 +330,37 @@ func (h *FuelHandler) RequestFuel(c *gin.Context) {
 		fuelReq.ApprovedAt = &now
 		fuelReq.PaidAt = &now
 
-		expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
-		expense := models.Expense{
-			ID:            bson.NewObjectID(),
-			ExpenseNumber: expNumber,
-			TruckID:       truckID,
-			TruckPlate:    truckPlate,
-			DriverID:      driverID,
-			DriverName:    driverName,
-			FuelRequestID: fuelReq.ID.Hex(),
-			ExpenseType:   "fuel",
-			Amount:        amountApproved,
-			Date:          reqTime,
-			Description:   fmt.Sprintf("Fuel disbursed for %s (%s)", driverName, input.Reason),
-			ReceiptNumber: fmt.Sprintf("FUEL-%s", reqNumber),
-			Status:        "active",
-			CreatedAt:     time.Now(),
-		}
-		if _, err := h.DB.Expenses.InsertOne(ctx, expense); err == nil {
-			fuelReq.LinkedExpenseID = expense.ID.Hex()
+		// Only disburse cash / record monetary expense if not drawing from internal reserve tank stock
+		if input.FuelSource != "reserve_fuel" || input.ReserveAction == "procure" {
+			existingExpCount, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+				"$or": []bson.M{
+					{"fuel_request_id": fuelReq.ID.Hex()},
+					{"receipt_number": fmt.Sprintf("FUEL-%s", reqNumber)},
+				},
+				"status": bson.M{"$ne": "cancelled"},
+			})
+			if existingExpCount == 0 {
+				expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
+				expense := models.Expense{
+					ID:            bson.NewObjectID(),
+					ExpenseNumber: expNumber,
+					TruckID:       truckID,
+					TruckPlate:    truckPlate,
+					DriverID:      driverID,
+					DriverName:    driverName,
+					FuelRequestID: fuelReq.ID.Hex(),
+					ExpenseType:   "fuel",
+					Amount:        amountApproved,
+					Date:          reqTime,
+					Description:   fmt.Sprintf("Fuel disbursed for %s (%s)", driverName, input.Reason),
+					ReceiptNumber: fmt.Sprintf("FUEL-%s", reqNumber),
+					Status:        "active",
+					CreatedAt:     time.Now(),
+				}
+				if _, err := h.DB.Expenses.InsertOne(ctx, expense); err == nil {
+					fuelReq.LinkedExpenseID = expense.ID.Hex()
+				}
+			}
 		}
 	} else if status == "approved" {
 		now := time.Now()
@@ -619,27 +631,50 @@ func (h *FuelHandler) MarkFuelPaid(c *gin.Context) {
 	var linkedExpenseID string
 	// If it's a Step 2 draw request, no cash disbursement is made (fuel pumped from internal stock)
 	if req.FuelSource != "reserve_fuel" || req.ReserveAction == "procure" {
-		expNumber = h.GenerateNextNumber(ctx, "expenses", "EX")
-		expense := models.Expense{
-			ID:            bson.NewObjectID(),
-			ExpenseNumber: expNumber,
-			TruckID:       req.TruckID,
-			TruckPlate:    req.TruckPlate,
-			DriverID:      req.DriverID,
-			DriverName:    req.DriverName,
-			FuelRequestID: req.ID.Hex(),
-			ExpenseType:   "fuel",
-			Amount:        paidAmount,
-			Date:          now,
-			Description:   fmt.Sprintf("Fuel disbursed for %s (%s)", req.DriverName, req.Reason),
-			ReceiptNumber: fmt.Sprintf("FUEL-%s", req.RequestNumber),
-			ReceiptURL:    req.ReceiptURL,
-			Status:        "active",
-			CreatedAt:     now,
-		}
+		if req.LinkedExpenseID != "" {
+			linkedExpenseID = req.LinkedExpenseID
+		} else {
+			existingExpCount, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+				"$or": []bson.M{
+					{"fuel_request_id": req.ID.Hex()},
+					{"receipt_number": fmt.Sprintf("FUEL-%s", req.RequestNumber)},
+				},
+				"status": bson.M{"$ne": "cancelled"},
+			})
+			if existingExpCount > 0 {
+				var existingExp models.Expense
+				_ = h.DB.Expenses.FindOne(ctx, bson.M{
+					"$or": []bson.M{
+						{"fuel_request_id": req.ID.Hex()},
+						{"receipt_number": fmt.Sprintf("FUEL-%s", req.RequestNumber)},
+					},
+					"status": bson.M{"$ne": "cancelled"},
+				}).Decode(&existingExp)
+				linkedExpenseID = existingExp.ID.Hex()
+			} else {
+				expNumber = h.GenerateNextNumber(ctx, "expenses", "EX")
+				expense := models.Expense{
+					ID:            bson.NewObjectID(),
+					ExpenseNumber: expNumber,
+					TruckID:       req.TruckID,
+					TruckPlate:    req.TruckPlate,
+					DriverID:      req.DriverID,
+					DriverName:    req.DriverName,
+					FuelRequestID: req.ID.Hex(),
+					ExpenseType:   "fuel",
+					Amount:        paidAmount,
+					Date:          now,
+					Description:   fmt.Sprintf("Fuel disbursed for %s (%s)", req.DriverName, req.Reason),
+					ReceiptNumber: fmt.Sprintf("FUEL-%s", req.RequestNumber),
+					ReceiptURL:    req.ReceiptURL,
+					Status:        "active",
+					CreatedAt:     now,
+				}
 
-		if _, err := h.DB.Expenses.InsertOne(ctx, expense); err == nil {
-			linkedExpenseID = expense.ID.Hex()
+				if _, err := h.DB.Expenses.InsertOne(ctx, expense); err == nil {
+					linkedExpenseID = expense.ID.Hex()
+				}
+			}
 		}
 	}
 

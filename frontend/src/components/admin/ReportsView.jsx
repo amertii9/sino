@@ -208,8 +208,16 @@ export const ReportsView = () => {
                 <span className="font-bold text-red-400 font-mono">- {formatCurrency(dashboardStats?.monthly_fuel_expense || 0)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400 pl-4">{t('less_maintenance_parts', 'Less: Maintenance, Parts, Tires & Other')}</span>
-                <span className="font-bold text-red-400 font-mono">- {formatCurrency(dashboardStats?.monthly_other_expense || 0)}</span>
+                <span className="text-slate-400 pl-4">🛣️ Less: Tolls, Weighbridges & Road Fees</span>
+                <span className="font-bold text-amber-400 font-mono">- {formatCurrency(dashboardStats?.monthly_toll_expense || 0)}</span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-400 pl-4">🔧 Less: Truck Maintenance & Repairs</span>
+                <span className="font-bold text-blue-400 font-mono">- {formatCurrency(dashboardStats?.monthly_maintenance_expense || 0)}</span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-slate-400 pl-4">📦 Less: Other Things (Tires, Parts, Oil & Misc)</span>
+                <span className="font-bold text-purple-400 font-mono">- {formatCurrency(dashboardStats?.monthly_other_expense || 0)}</span>
               </div>
               <div className="py-3 flex justify-between items-center bg-emerald-950/20 px-3 rounded-2xl border border-emerald-500/30">
                 <span className="font-bold text-emerald-400 text-sm">{t('net_operational_profit', 'NET OPERATIONAL PROFIT:')}</span>

@@ -51,10 +51,10 @@ export const MaintenanceManagement = () => {
   const [formData, setFormData] = useState({
     truck_id: '',
     maintenance_type: 'oil_change',
-    mileage: 50000,
-    cost: 3500,
+    mileage: '',
+    cost: '',
     next_date: '',
-    next_mileage: 60000,
+    next_mileage: '',
     description: '',
     status: 'completed',
     priority: 'normal',
@@ -86,10 +86,10 @@ export const MaintenanceManagement = () => {
     setFormData({
       truck_id: '',
       maintenance_type: suggestions[0]?.id || 'oil_change',
-      mileage: 50000,
-      cost: 3500,
+      mileage: '',
+      cost: '',
       next_date: '',
-      next_mileage: 60000,
+      next_mileage: '',
       description: '',
       status: 'completed',
       priority: 'normal',
@@ -513,7 +513,16 @@ export const MaintenanceManagement = () => {
                   <label className="block text-slate-300 mb-1 font-semibold">{t('truck_field_label', 'Truck:')}</label>
                   <select
                     value={formData.truck_id}
-                    onChange={e => setFormData({ ...formData, truck_id: e.target.value })}
+                    onChange={e => {
+                      const selectedId = e.target.value;
+                      const trk = trucks.find(t => t.id === selectedId);
+                      const currentOdo = trk ? (trk.current_odometer || trk.current_mileage || trk.mileage || '') : '';
+                      setFormData(prev => ({
+                        ...prev,
+                        truck_id: selectedId,
+                        mileage: prev.mileage || currentOdo || '',
+                      }));
+                    }}
                     className="w-full py-2 px-3 bg-slate-800 border border-slate-700 rounded-xl text-white"
                     required
                   >

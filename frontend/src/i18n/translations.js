@@ -3,6 +3,13 @@
 
 export const translations = {
   en: {
+    record_note_btn: '📝 Record Note',
+    menu_notes: 'Notes & Allowances',
+    record_note_title: 'Operational Notes & Driver Allowances',
+    record_note_sub: 'Record driver per diem allowances, fleet dispatch remarks, road delays, and maintenance notes.',
+    tab_record_note: '✍️ Record New Note',
+    tab_notes_history: '📋 Notes & Allowances History',
+    save_record_note: '💾 Save & Record Note',
     auto_suggested_route_rate: 'Auto-suggested Route Rate',
     via_checkpoint: 'Via Checkpoint:',
     fast_start_hauling_suggestions: 'Fast-Start Hauling Suggestions',
@@ -1328,6 +1335,13 @@ export const translations = {
     "reserve_badge_draw": '🚜 Step 2: Truck Draw',
   },
   om: {
+    record_note_btn: '📝 Yaadannoo Galmeessi',
+    menu_notes: 'Yaadannoo fi Durgoo',
+    record_note_title: 'Yaadannoowwan Hojii fi Durgoo Konkolaachisaa',
+    record_note_sub: 'Durgoo konkolaachisaa, yaadannoowwan boba\'aa, tursiisa daandii fi suphaa galmeessi.',
+    tab_record_note: '✍️ Yaadannoo Haaraa Galmeessi',
+    tab_notes_history: '📋 Seenaa Yaadannoo fi Durgoo',
+    save_record_note: '💾 Yaadannoo Olkaayi',
     auto_suggested_route_rate: 'Gatii Daandii Yaadachiisaa',
     via_checkpoint: 'Buufata Sakkattaa Kanaan:',
     fast_start_hauling_suggestions: 'Yaada Fe\'umsaa Saffisaa',
@@ -2653,6 +2667,13 @@ export const translations = {
     "reserve_badge_draw": '🚜 T-2: Konkolaataatti Waraabi',
   },
   am: {
+    record_note_btn: '📝 ማስታወሻ መዝግብ',
+    menu_notes: 'ማስታወሻዎች እና አበል',
+    record_note_title: 'የክንውን ማስታወሻዎች እና የአሽከርካሪ አበል',
+    record_note_sub: 'የአሽከርካሪ አበል (ፔርዲየም)፣ የነዳጅ ማስታወሻዎች፣ የመንገድ መዘግየቶች እና የጥገና ሁኔታዎችን ይመዝግቡ።',
+    tab_record_note: '✍️ አዲስ ማስታወሻ መዝግብ',
+    tab_notes_history: '📋 የማስታወሻዎች እና አበል ታሪክ',
+    save_record_note: '💾 ማስታወሻውን መዝግብ',
     auto_suggested_route_rate: 'በራሱ የሚመከር የመንገድ ዋጋ',
     via_checkpoint: 'በፍተሻ ጣቢያ በኩል፦',
     fast_start_hauling_suggestions: 'የፈጣን ጅምር የማጓጓዣ ምክሮች',

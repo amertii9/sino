@@ -19,6 +19,7 @@ import { ReportsView } from './ReportsView';
 import { AuditLogsView } from './AuditLogsView';
 import { SettingsView } from './SettingsView';
 import { ProfileModal } from '../common/ProfileModal';
+import { RecordNotesView } from './RecordNotesView';
 
 export const AdminPortal = () => {
   const { t } = useLanguage();
@@ -68,6 +69,7 @@ export const AdminPortal = () => {
         {[
           { id: 'dashboard', label: t('menu_dashboard', 'Dashboard') },
           { id: 'trips', label: t('menu_trips', 'Trips') },
+          { id: 'notes', label: t('menu_notes', 'Notes & Allowances') },
           { id: 'payments', label: `${t('menu_payments', 'Payments')}${pendingPaymentsCount > 0 ? ` (${pendingPaymentsCount})` : ''}` },
           { id: 'odometer', label: t('menu_odometer', 'Odometer') },
           { id: 'trucks', label: t('menu_trucks', 'Trucks') },
@@ -108,6 +110,7 @@ export const AdminPortal = () => {
       <main className="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl">
         {activeTab === 'dashboard' && <AdminDashboard onNavigate={setActiveTab} />}
         {activeTab === 'trips' && <TripsManagement />}
+        {activeTab === 'notes' && <RecordNotesView />}
         {activeTab === 'payments' && <PaymentsManagement onNavigate={setActiveTab} />}
         {activeTab === 'odometer' && <OdometerRecordsView />}
         {activeTab === 'trucks' && <TruckManagement />}

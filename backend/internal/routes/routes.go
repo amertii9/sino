@@ -43,6 +43,7 @@ func SetupRoutes(r *gin.Engine, db *database.Database, cfg *config.Config) {
 	extraH := handlers.NewExtraHandler(base)
 	odometerH := handlers.NewOdometerHandler(base)
 	paymentH := handlers.NewPaymentHandler(base)
+	noteH := handlers.NewNoteHandler(base)
 
 	// Health check (lightweight, unmetered for load balancers)
 	r.GET("/api/health", func(c *gin.Context) {
@@ -148,11 +149,24 @@ func SetupRoutes(r *gin.Engine, db *database.Database, cfg *config.Config) {
 				admin.PATCH("/expenses/:id/cancel", expH.CancelExpense)
 				admin.DELETE("/expenses/:id", expH.DeleteExpense)
 
-				// Recurring Expenses (EIC 2-Year Auto Deduction & Controls)
+				// Recurring Expenses (Multi-Item Auto Deductions & EIC Controls)
+				admin.GET("/expenses/recurring", expH.GetRecurringExpenses)
+				admin.POST("/expenses/recurring", expH.CreateRecurringExpense)
+				admin.PUT("/expenses/recurring/:id", expH.UpdateRecurringExpense)
+				admin.DELETE("/expenses/recurring/:id", expH.DeleteRecurringExpense)
+				admin.POST("/expenses/recurring/:id/toggle", expH.ToggleRecurringExpense)
+				admin.POST("/expenses/recurring/:id/deduct-now", expH.DeductRecurringExpenseNow)
 				admin.GET("/expenses/recurring/eic", expH.GetEICRecurring)
 				admin.PUT("/expenses/recurring/eic", expH.UpdateEICRecurring)
 				admin.POST("/expenses/recurring/eic/deduct-now", expH.DeductEICNow)
 				admin.POST("/expenses/recurring/eic/toggle", expH.ToggleEICRecurring)
+
+				// Operational Notes & Driver Allowances
+				admin.GET("/notes", noteH.GetNotes)
+				admin.POST("/notes", noteH.CreateNote)
+				admin.PUT("/notes/:id", noteH.UpdateNote)
+				admin.DELETE("/notes/:id", noteH.DeleteNote)
+				admin.POST("/notes/:id/add-to-expense", noteH.AddNoteToExpense)
 
 				// Trucks (Create, Edit, Delete)
 				admin.POST("/trucks", truckH.CreateTruck)

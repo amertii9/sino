@@ -23,7 +23,7 @@ func LoadConfig() *Config {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "6061"
+		port = "6062"
 	}
 
 	mongoURI := os.Getenv("MONGO_URI")

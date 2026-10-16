@@ -1105,7 +1105,7 @@ export const AdminDashboard = ({ onNavigate }) => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700">
             <div className="flex justify-between items-center">
               <span className="text-[11px] text-slate-400">{t('monthly_revenue', 'Monthly Revenue')}</span>
@@ -1124,19 +1124,35 @@ export const AdminDashboard = ({ onNavigate }) => {
           </div>
 
           <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700">
-            <div className="text-[11px] text-slate-400">{t('fuel_expenses', 'Fuel Expenses')}</div>
+            <div className="text-[11px] text-slate-400">⛽ {t('fuel_expenses', 'Fuel Expenses')}</div>
             <div className="text-lg font-black text-red-400 mt-1">
               {formatCurrency(stats?.monthly_fuel_expense || 0)}
             </div>
-            <div className="text-[10px] text-slate-500">{t('disbursed_fuel_advances', 'Disbursed fuel advances')}</div>
+            <div className="text-[10px] text-slate-500">{t('disbursed_fuel_advances', 'Fuel advances & purchases')}</div>
           </div>
 
           <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700">
-            <div className="text-[11px] text-slate-400">{t('other_expenses', 'Other Expenses')}</div>
-            <div className="text-lg font-black text-slate-200 mt-1">
+            <div className="text-[11px] text-slate-400">🛣️ Toll & Road Fees</div>
+            <div className="text-lg font-black text-amber-400 mt-1">
+              {formatCurrency(stats?.monthly_toll_expense || 0)}
+            </div>
+            <div className="text-[10px] text-slate-500">Tolls, scales & checkpoints</div>
+          </div>
+
+          <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700">
+            <div className="text-[11px] text-slate-400">🔧 Maintenance</div>
+            <div className="text-lg font-black text-blue-400 mt-1">
+              {formatCurrency(stats?.monthly_maintenance_expense || 0)}
+            </div>
+            <div className="text-[10px] text-slate-500">Workshop repairs & servicing</div>
+          </div>
+
+          <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700">
+            <div className="text-[11px] text-slate-400">📦 Other Things</div>
+            <div className="text-lg font-black text-purple-300 mt-1">
               {formatCurrency(stats?.monthly_other_expense || 0)}
             </div>
-            <div className="text-[10px] text-slate-500">{t('parts_tires_maint', 'Parts, tires, maintenance, wash')}</div>
+            <div className="text-[10px] text-slate-500">Tires, parts, oil, insurance & misc</div>
           </div>
 
           <div className="p-3.5 bg-slate-800/80 rounded-2xl border border-emerald-500/40 bg-emerald-950/20">

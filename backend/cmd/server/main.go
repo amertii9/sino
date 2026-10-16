@@ -64,10 +64,10 @@ func main() {
 	}
 	syncCancel()
 
-	// Automatic recurring deduction check (e.g. EIC insurance on 1st of month)
+	// Automatic recurring deduction check (EIC insurance & custom monthly expenses)
 	expHandler := handlers.NewExpenseHandler(handlers.BaseHandler{DB: db, JWTSecret: cfg.JWTSecret})
 	initCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	_, _ = expHandler.CheckAndExecuteEICDeduction(initCtx)
+	_, _ = expHandler.CheckAndExecuteAllRecurringDeductions(initCtx)
 	cancel()
 
 	// Stop channel for background workers
@@ -81,7 +81,7 @@ func main() {
 			select {
 			case <-ticker.C:
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				_, _ = expHandler.CheckAndExecuteEICDeduction(ctx)
+				_, _ = expHandler.CheckAndExecuteAllRecurringDeductions(ctx)
 				cancel()
 			case <-stopWorkers:
 				log.Println("[INFO] Recurring deduction worker stopped")

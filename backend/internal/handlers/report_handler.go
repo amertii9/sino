@@ -65,6 +65,8 @@ func (h *ReportHandler) GetDashboardStats(c *gin.Context) {
 	var quantityMonth float64
 	var revenueMonth float64
 	var fuelExpenseMonth float64
+	var tollExpenseMonth float64
+	var maintExpenseMonth float64
 	var otherExpenseMonth float64
 
 	// Payment-specific counters
@@ -158,16 +160,21 @@ func (h *ReportHandler) GetDashboardStats(c *gin.Context) {
 		}
 
 		if !e.Date.Before(startOfMonth) {
-			if e.ExpenseType == "fuel" {
+			switch e.ExpenseType {
+			case "fuel":
 				fuelExpenseMonth += e.Amount
-			} else {
+			case "toll", "weighbridge", "gate_fee":
+				tollExpenseMonth += e.Amount
+			case "maintenance", "repair":
+				maintExpenseMonth += e.Amount
+			default:
 				otherExpenseMonth += e.Amount
 			}
 		}
 	}
 
 	profitToday := revenueToday - expensesToday
-	totalExpenseMonth := fuelExpenseMonth + otherExpenseMonth
+	totalExpenseMonth := fuelExpenseMonth + tollExpenseMonth + maintExpenseMonth + otherExpenseMonth
 	netProfitMonth := revenueMonth - totalExpenseMonth
 
 	// Top Performing Trucks
@@ -231,11 +238,13 @@ func (h *ReportHandler) GetDashboardStats(c *gin.Context) {
 		"profit_today":          profitToday,
 		"trips_month":           tripsMonthCount,
 		"quantity_month":        quantityMonth,
-		"monthly_revenue":       revenueMonth,
-		"monthly_fuel_expense":  fuelExpenseMonth,
-		"monthly_other_expense": otherExpenseMonth,
-		"monthly_total_expense": totalExpenseMonth,
-		"monthly_net_profit":    netProfitMonth,
+		"monthly_revenue":             revenueMonth,
+		"monthly_fuel_expense":        fuelExpenseMonth,
+		"monthly_toll_expense":        tollExpenseMonth,
+		"monthly_maintenance_expense": maintExpenseMonth,
+		"monthly_other_expense":       otherExpenseMonth,
+		"monthly_total_expense":       totalExpenseMonth,
+		"monthly_net_profit":          netProfitMonth,
 		"pending_fuel_requests": pendingFuelCount,
 		"pending_payments_count":   pendingPaymentsCount,
 		"pending_revenue_today":    pendingRevenueToday,

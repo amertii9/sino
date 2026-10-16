@@ -116,8 +116,8 @@ func (h *ExpenseHandler) GetExpenses(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Automatically check and execute any due recurring EIC monthly deduction
-	_, _ = h.CheckAndExecuteEICDeduction(ctx)
+	// Automatically check and execute any due recurring monthly deductions (EIC & other recurring expenses)
+	_, _ = h.CheckAndExecuteAllRecurringDeductions(ctx)
 
 	findOpts := options.Find().SetSort(bson.D{{Key: "date", Value: -1}})
 	cursor, err := h.DB.Expenses.Find(ctx, filter, findOpts)
@@ -359,131 +359,256 @@ func (h *ExpenseHandler) syncTripExpenses(ctx context.Context, tripIDStr string)
 	})
 }
 
-// CheckAndExecuteEICDeduction checks if current month's EIC payment is due and executes deduction automatically
-func (h *ExpenseHandler) CheckAndExecuteEICDeduction(ctx context.Context) (*models.Expense, error) {
+// ensureRecurringExpenses guarantees that settings.RecurringExpenses is populated, migrating EIC config if needed
+func (h *ExpenseHandler) ensureRecurringExpenses(ctx context.Context, settings *models.Settings) []models.RecurringExpense {
+	if len(settings.RecurringExpenses) > 0 {
+		return settings.RecurringExpenses
+	}
+
+	subDesc := "Automatic monthly deduction on the 1st day of the month for 2 years (24 installments). Automatically debited into operational expenses and financial reports."
+	monthlyAmount := 150000.0
+	totalMonths := 24
+	paidMonths := 0
+	deductionDay := 1
+	status := "active"
+	enabled := true
+	startDate := "2026-10-01"
+	endDate := "2028-10-01"
+	lastDeductedMonth := ""
+	var lastDeductedAt *time.Time
+
+	if settings.EICRecurring != nil {
+		if settings.EICRecurring.MonthlyAmount > 0 {
+			monthlyAmount = settings.EICRecurring.MonthlyAmount
+		}
+		if settings.EICRecurring.TotalMonths > 0 {
+			totalMonths = settings.EICRecurring.TotalMonths
+		}
+		paidMonths = settings.EICRecurring.PaidMonths
+		if settings.EICRecurring.DeductionDay > 0 {
+			deductionDay = settings.EICRecurring.DeductionDay
+		}
+		if settings.EICRecurring.Status != "" {
+			status = settings.EICRecurring.Status
+		}
+		enabled = settings.EICRecurring.Enabled
+		if settings.EICRecurring.StartDate != "" {
+			startDate = settings.EICRecurring.StartDate
+		}
+		if settings.EICRecurring.EndDate != "" {
+			endDate = settings.EICRecurring.EndDate
+		}
+		lastDeductedMonth = settings.EICRecurring.LastDeductedMonth
+		lastDeductedAt = settings.EICRecurring.LastDeductedAt
+	}
+
+	eicItem := models.RecurringExpense{
+		ID:                "eic_insurance",
+		Title:             "Ethiopian Insurance Corporation (EIC)",
+		Category:          "insurance",
+		SubDescription:    subDesc,
+		Enabled:           enabled,
+		MonthlyAmount:     monthlyAmount,
+		TotalMonths:       totalMonths,
+		PaidMonths:        paidMonths,
+		StartDate:         startDate,
+		EndDate:           endDate,
+		DeductionDay:      deductionDay,
+		LastDeductedMonth: lastDeductedMonth,
+		LastDeductedAt:    lastDeductedAt,
+		Status:            status,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+	}
+
+	settings.RecurringExpenses = []models.RecurringExpense{eicItem}
+	_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": bson.M{"recurring_expenses": settings.RecurringExpenses}})
+	return settings.RecurringExpenses
+}
+
+// CheckAndExecuteAllRecurringDeductions checks if any recurring monthly deduction is due and executes it
+func (h *ExpenseHandler) CheckAndExecuteAllRecurringDeductions(ctx context.Context) ([]models.Expense, error) {
 	var settings models.Settings
 	err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings)
 	if err != nil {
 		return nil, err
 	}
 
-	if settings.EICRecurring == nil {
-		defaultConfig := models.EICRecurringConfig{
-			Enabled:           true,
-			MonthlyAmount:     150000,
-			TotalMonths:       24,
-			PaidMonths:        0,
-			StartDate:         "2026-10-01",
-			EndDate:           "2028-10-01",
-			DeductionDay:      1,
-			LastDeductedMonth: "",
-			Description:       "EIC (Ethiopian Insurance Corporation) Monthly Fleet Insurance Premium",
-			Status:            "active",
-		}
-		settings.EICRecurring = &defaultConfig
-		_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": bson.M{"eic_recurring": defaultConfig}})
-	}
-
-	eic := settings.EICRecurring
-	if !eic.Enabled || eic.Status != "active" {
-		return nil, nil
-	}
-
+	items := h.ensureRecurringExpenses(ctx, &settings)
 	now := time.Now()
 	currentMonthStr := now.Format("2006-01") // e.g. "2026-10"
 
-	// Only deduct if we have reached or passed deduction day of current month
-	if now.Day() < eic.DeductionDay {
-		return nil, nil
+	var executedExpenses []models.Expense
+	modified := false
+
+	for i := range items {
+		item := &items[i]
+		if !item.Enabled || item.Status != "active" {
+			continue
+		}
+
+		if item.TotalMonths > 0 && item.PaidMonths >= item.TotalMonths {
+			item.Status = "completed"
+			modified = true
+			continue
+		}
+
+		if now.Day() < item.DeductionDay {
+			continue
+		}
+
+		if item.LastDeductedMonth == currentMonthStr {
+			continue
+		}
+
+		// Check if an expense with receipt number REC-AUTO-{item.ID}-{currentMonthStr} or EIC-AUTO-{currentMonthStr} already exists
+		var receiptFilter bson.M
+		if item.ID == "eic_insurance" {
+			receiptFilter = bson.M{
+				"$or": []bson.M{
+					{"receipt_number": fmt.Sprintf("EIC-AUTO-%s", currentMonthStr)},
+					{"receipt_number": fmt.Sprintf("REC-AUTO-%s-%s", item.ID, currentMonthStr)},
+				},
+				"status": bson.M{"$ne": "cancelled"},
+			}
+		} else {
+			receiptFilter = bson.M{
+				"receipt_number": fmt.Sprintf("REC-AUTO-%s-%s", item.ID, currentMonthStr),
+				"status":         bson.M{"$ne": "cancelled"},
+			}
+		}
+
+		count, _ := h.DB.Expenses.CountDocuments(ctx, receiptFilter)
+		if count > 0 {
+			item.LastDeductedMonth = currentMonthStr
+			modified = true
+			continue
+		}
+
+		// Create auto-deducted expense
+		expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
+		deductDate := time.Date(now.Year(), now.Month(), item.DeductionDay, 8, 0, 0, 0, now.Location())
+		newPaidMonths := item.PaidMonths + 1
+
+		receiptNum := fmt.Sprintf("REC-AUTO-%s-%s", item.ID, currentMonthStr)
+		if item.ID == "eic_insurance" {
+			receiptNum = fmt.Sprintf("EIC-AUTO-%s", currentMonthStr)
+		}
+
+		desc := fmt.Sprintf("%s - Monthly Auto-Deduction (%s)", item.Title, currentMonthStr)
+		if item.TotalMonths > 0 {
+			desc = fmt.Sprintf("%s - Month %d of %d (Auto-deducted)", item.Title, newPaidMonths, item.TotalMonths)
+		}
+
+		expenseType := item.Category
+		if expenseType == "" {
+			expenseType = "other"
+		}
+
+		driverName := item.Title
+		truckPlate := "All Fleet / Recurring Overhead"
+		if item.ID == "eic_insurance" {
+			truckPlate = "All Fleet (Comprehensive Insurance)"
+			driverName = "Ethiopian Insurance Corporation (EIC)"
+		}
+
+		expense := models.Expense{
+			ID:            bson.NewObjectID(),
+			ExpenseNumber: expNumber,
+			TruckID:       "fleet",
+			TruckPlate:    truckPlate,
+			DriverID:      "overhead",
+			DriverName:    driverName,
+			ExpenseType:   expenseType,
+			Amount:        item.MonthlyAmount,
+			Date:          deductDate,
+			Description:   desc,
+			ReceiptNumber: receiptNum,
+			Status:        "active",
+			CreatedAt:     now,
+		}
+
+		_, err = h.DB.Expenses.InsertOne(ctx, expense)
+		if err != nil {
+			continue
+		}
+
+		item.PaidMonths = newPaidMonths
+		item.LastDeductedMonth = currentMonthStr
+		item.LastDeductedAt = &now
+		item.UpdatedAt = now
+		if item.TotalMonths > 0 && item.PaidMonths >= item.TotalMonths {
+			item.Status = "completed"
+		}
+
+		modified = true
+		executedExpenses = append(executedExpenses, expense)
+
+		h.LogAudit(ctx, "system", "System Scheduler", "Auto-Deducted Recurring Expense", "Expense", expense.ID.Hex(), "",
+			fmt.Sprintf("Auto-deducted %s: %.0f ETB for %s", item.Title, item.MonthlyAmount, currentMonthStr))
+
+		notif := models.Notification{
+			ID:         bson.NewObjectID(),
+			TargetRole: string(models.RoleAdmin),
+			Title:      fmt.Sprintf("%s Auto-Deducted", item.Title),
+			Message:    fmt.Sprintf("Monthly recurring expense of %.0f ETB automatically deducted for %s.", item.MonthlyAmount, currentMonthStr),
+			Type:       "expense",
+			IsRead:     false,
+			CreatedAt:  now,
+		}
+		_, _ = h.DB.Notifications.InsertOne(ctx, notif)
 	}
 
-	// Check if already deducted for this month
-	if eic.LastDeductedMonth == currentMonthStr {
-		return nil, nil
+	if modified {
+		updateDoc := bson.M{
+			"recurring_expenses": items,
+		}
+		for _, it := range items {
+			if it.ID == "eic_insurance" && settings.EICRecurring != nil {
+				updateDoc["eic_recurring.paid_months"] = it.PaidMonths
+				updateDoc["eic_recurring.last_deducted_month"] = it.LastDeductedMonth
+				updateDoc["eic_recurring.last_deducted_at"] = it.LastDeductedAt
+				updateDoc["eic_recurring.status"] = it.Status
+				break
+			}
+		}
+		_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": updateDoc})
 	}
 
-	// Check if already reached total months
-	if eic.PaidMonths >= eic.TotalMonths && eic.TotalMonths > 0 {
-		_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": bson.M{"eic_recurring.status": "completed"}})
-		return nil, nil
-	}
+	return executedExpenses, nil
+}
 
-	// Check if an expense with receipt number EIC-AUTO-{currentMonthStr} already exists
-	count, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
-		"receipt_number": fmt.Sprintf("EIC-AUTO-%s", currentMonthStr),
-		"status":         bson.M{"$ne": "cancelled"},
-	})
-	if count > 0 {
-		eic.LastDeductedMonth = currentMonthStr
-		_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": bson.M{
-			"eic_recurring.last_deducted_month": currentMonthStr,
-		}})
-		return nil, nil
-	}
-
-	// Create and insert the auto-deducted expense
-	expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
-	deductDate := time.Date(now.Year(), now.Month(), 1, 8, 0, 0, 0, now.Location())
-	newPaidMonths := eic.PaidMonths + 1
-
-	expense := models.Expense{
-		ID:            bson.NewObjectID(),
-		ExpenseNumber: expNumber,
-		TruckID:       "fleet",
-		TruckPlate:    "All Fleet (Comprehensive Insurance)",
-		DriverID:      "eic_corp",
-		DriverName:    "Ethiopian Insurance Corporation (EIC)",
-		ExpenseType:   "insurance",
-		Amount:        eic.MonthlyAmount,
-		Date:          deductDate,
-		Description:   fmt.Sprintf("EIC Monthly Fleet Insurance Premium - Month %d of %d (Auto-deducted)", newPaidMonths, eic.TotalMonths),
-		ReceiptNumber: fmt.Sprintf("EIC-AUTO-%s", currentMonthStr),
-		Status:        "active",
-		CreatedAt:     now,
-	}
-
-	_, err = h.DB.Expenses.InsertOne(ctx, expense)
+// CheckAndExecuteEICDeduction maintains backward compatibility with legacy caller
+func (h *ExpenseHandler) CheckAndExecuteEICDeduction(ctx context.Context) (*models.Expense, error) {
+	expenses, err := h.CheckAndExecuteAllRecurringDeductions(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	// Update settings
-	updateFields := bson.M{
-		"eic_recurring.paid_months":         newPaidMonths,
-		"eic_recurring.last_deducted_month": currentMonthStr,
-		"eic_recurring.last_deducted_at":    now,
+	for _, exp := range expenses {
+		if exp.DriverName == "Ethiopian Insurance Corporation (EIC)" || (len(exp.ReceiptNumber) >= 4 && exp.ReceiptNumber[:4] == "EIC-") {
+			return &exp, nil
+		}
 	}
-	if newPaidMonths >= eic.TotalMonths {
-		updateFields["eic_recurring.status"] = "completed"
-	}
-
-	_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": updateFields})
-
-	// Log audit and notification
-	h.LogAudit(ctx, "system", "System Scheduler", "Auto-Deducted Recurring Expense", "Expense", expense.ID.Hex(), "",
-		fmt.Sprintf("Auto-deducted EIC Monthly Insurance: %.0f ETB for %s (Month %d/%d)", eic.MonthlyAmount, currentMonthStr, newPaidMonths, eic.TotalMonths))
-
-	notif := models.Notification{
-		ID:         bson.NewObjectID(),
-		TargetRole: string(models.RoleAdmin),
-		Title:      "EIC Insurance Auto-Deducted",
-		Message:    fmt.Sprintf("Monthly premium of %.0f ETB has been automatically deducted for %s (Month %d of %d).", eic.MonthlyAmount, currentMonthStr, newPaidMonths, eic.TotalMonths),
-		Type:       "expense",
-		IsRead:     false,
-		CreatedAt:  now,
-	}
-	_, _ = h.DB.Notifications.InsertOne(ctx, notif)
-
-	return &expense, nil
+	return nil, nil
 }
 
-// GetEICRecurring returns the EIC auto-deduction schedule and status
-func (h *ExpenseHandler) GetEICRecurring(c *gin.Context) {
+type RecurringExpenseDetail struct {
+	models.RecurringExpense `bson:",inline" json:",inline"`
+	RemainingMonths          int              `json:"remaining_months"`
+	TotalContractValue       float64          `json:"total_contract_value"`
+	TotalPaidSoFar           float64          `json:"total_paid_so_far"`
+	RemainingBalance         float64          `json:"remaining_balance"`
+	DeductedThisMonth        bool             `json:"deducted_this_month"`
+	NextDeductionDate        string           `json:"next_deduction_date"`
+	History                  []models.Expense `json:"history"`
+}
+
+// GetRecurringExpenses returns all recurring expense schedules and their status
+func (h *ExpenseHandler) GetRecurringExpenses(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Run auto-deduction check first
-	_, _ = h.CheckAndExecuteEICDeduction(ctx)
+	_, _ = h.CheckAndExecuteAllRecurringDeductions(ctx)
 
 	var settings models.Settings
 	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err != nil {
@@ -491,19 +616,560 @@ func (h *ExpenseHandler) GetEICRecurring(c *gin.Context) {
 		return
 	}
 
+	items := h.ensureRecurringExpenses(ctx, &settings)
+	now := time.Now()
+	currentMonthStr := now.Format("2006-01")
+
+	details := make([]RecurringExpenseDetail, 0, len(items))
+
+	for _, item := range items {
+		remMonths := 0
+		if item.TotalMonths > 0 {
+			remMonths = item.TotalMonths - item.PaidMonths
+			if remMonths < 0 {
+				remMonths = 0
+			}
+		}
+		totalContractVal := 0.0
+		if item.TotalMonths > 0 {
+			totalContractVal = item.MonthlyAmount * float64(item.TotalMonths)
+		}
+		totalPaid := item.MonthlyAmount * float64(item.PaidMonths)
+		remBalance := 0.0
+		if item.TotalMonths > 0 {
+			remBalance = totalContractVal - totalPaid
+			if remBalance < 0 {
+				remBalance = 0
+			}
+		}
+
+		deductedThisMonth := (item.LastDeductedMonth == currentMonthStr)
+
+		// Next deduction date
+		nextMonth := now
+		if deductedThisMonth {
+			nextMonth = now.AddDate(0, 1, 0)
+		}
+		day := item.DeductionDay
+		if day <= 0 || day > 28 {
+			day = 1
+		}
+		nextDeductionDate := fmt.Sprintf("%04d-%02d-%02d", nextMonth.Year(), nextMonth.Month(), day)
+
+		// Find history for this item
+		var histFilter bson.M
+		if item.ID == "eic_insurance" {
+			histFilter = bson.M{
+				"$or": []bson.M{
+					{"expense_type": "insurance"},
+					{"receipt_number": bson.M{"$regex": "^EIC-"}},
+					{"receipt_number": bson.M{"$regex": "^REC-.*eic"}},
+				},
+			}
+		} else {
+			histFilter = bson.M{
+				"$or": []bson.M{
+					{"receipt_number": bson.M{"$regex": fmt.Sprintf("^REC-(AUTO|MANUAL)-%s", item.ID)}},
+					{"description": bson.M{"$regex": item.Title, "$options": "i"}},
+				},
+			}
+		}
+
+		cur, _ := h.DB.Expenses.Find(ctx, histFilter, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}).SetLimit(24))
+		var history []models.Expense
+		if cur != nil {
+			_ = cur.All(ctx, &history)
+			cur.Close(ctx)
+		}
+		if history == nil {
+			history = []models.Expense{}
+		}
+
+		details = append(details, RecurringExpenseDetail{
+			RecurringExpense:   item,
+			RemainingMonths:    remMonths,
+			TotalContractValue: totalContractVal,
+			TotalPaidSoFar:     totalPaid,
+			RemainingBalance:   remBalance,
+			DeductedThisMonth:  deductedThisMonth,
+			NextDeductionDate:  nextDeductionDate,
+			History:            history,
+		})
+	}
+
+	c.JSON(http.StatusOK, details)
+}
+
+type CreateRecurringExpenseInput struct {
+	Title          string  `json:"title" binding:"required"`
+	Category       string  `json:"category"`
+	SubDescription string  `json:"sub_description"`
+	MonthlyAmount  float64 `json:"monthly_amount" binding:"required"`
+	TotalMonths    int     `json:"total_months"` // 0 = indefinite/ongoing
+	DeductionDay   int     `json:"deduction_day"`
+	StartDate      string  `json:"start_date"`
+	EndDate        string  `json:"end_date"`
+	Status         string  `json:"status"` // "active" or "paused"
+}
+
+// CreateRecurringExpense allows the admin to register another monthly recurring expense
+func (h *ExpenseHandler) CreateRecurringExpense(c *gin.Context) {
+	var input CreateRecurringExpenseInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Please provide valid recurring expense details: " + err.Error()})
+		return
+	}
+
+	if input.MonthlyAmount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Monthly amount must be greater than zero"})
+		return
+	}
+
+	if input.DeductionDay <= 0 || input.DeductionDay > 28 {
+		input.DeductionDay = 1
+	}
+
+	if input.Category == "" {
+		input.Category = "other"
+	}
+
+	if input.Status == "" {
+		input.Status = "active"
+	}
+
+	now := time.Now()
+	if input.StartDate == "" {
+		input.StartDate = now.Format("2006-01-02")
+	}
+
+	if input.SubDescription == "" {
+		if input.TotalMonths > 0 {
+			input.SubDescription = fmt.Sprintf("Automatic monthly deduction on day %d of the month for %d months. Debited into operational expenses and financial reports.", input.DeductionDay, input.TotalMonths)
+		} else {
+			input.SubDescription = fmt.Sprintf("Automatic monthly deduction on day %d of the month (ongoing). Debited into operational expenses and financial reports.", input.DeductionDay)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var settings models.Settings
+	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Settings not found"})
+		return
+	}
+
+	items := h.ensureRecurringExpenses(ctx, &settings)
+
+	newID := fmt.Sprintf("rec_%d", now.UnixNano())
+	newItem := models.RecurringExpense{
+		ID:                newID,
+		Title:             input.Title,
+		Category:          input.Category,
+		SubDescription:    input.SubDescription,
+		Enabled:           input.Status == "active",
+		MonthlyAmount:     input.MonthlyAmount,
+		TotalMonths:       input.TotalMonths,
+		PaidMonths:        0,
+		StartDate:         input.StartDate,
+		EndDate:           input.EndDate,
+		DeductionDay:      input.DeductionDay,
+		LastDeductedMonth: "",
+		Status:            input.Status,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	items = append(items, newItem)
+	_, err := h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": bson.M{"recurring_expenses": items}})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add recurring expense: " + err.Error()})
+		return
+	}
+
+	userName := c.GetString("fullName")
+	userIDStr := c.GetString("userID")
+	h.LogAudit(ctx, userIDStr, userName, "Created Recurring Expense Schedule", "RecurringExpense", newItem.ID, "",
+		fmt.Sprintf("Added recurring expense: %s (%.0f ETB / month)", newItem.Title, newItem.MonthlyAmount))
+
+	c.JSON(http.StatusCreated, newItem)
+}
+
+type UpdateRecurringExpenseInput struct {
+	Title          string  `json:"title"`
+	Category       string  `json:"category"`
+	SubDescription string  `json:"sub_description"` // The user-requested editable text
+	MonthlyAmount  float64 `json:"monthly_amount"`
+	TotalMonths    *int    `json:"total_months"`
+	PaidMonths     *int    `json:"paid_months"`
+	DeductionDay   int     `json:"deduction_day"`
+	StartDate      string  `json:"start_date"`
+	EndDate        string  `json:"end_date"`
+	Status         string  `json:"status"`
+	Enabled        *bool   `json:"enabled"`
+}
+
+// UpdateRecurringExpense updates any recurring expense, including its sub_description note
+func (h *ExpenseHandler) UpdateRecurringExpense(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Recurring expense ID is required"})
+		return
+	}
+
+	var input UpdateRecurringExpenseInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var settings models.Settings
+	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Settings not found"})
+		return
+	}
+
+	items := h.ensureRecurringExpenses(ctx, &settings)
+	foundIdx := -1
+	for i := range items {
+		if items[i].ID == id {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Recurring expense not found"})
+		return
+	}
+
+	item := &items[foundIdx]
+	if input.Title != "" {
+		item.Title = input.Title
+	}
+	if input.Category != "" {
+		item.Category = input.Category
+	}
+	// sub_description is explicitly updated per user request
+	if input.SubDescription != "" {
+		item.SubDescription = input.SubDescription
+	}
+	if input.MonthlyAmount > 0 {
+		item.MonthlyAmount = input.MonthlyAmount
+	}
+	if input.TotalMonths != nil {
+		item.TotalMonths = *input.TotalMonths
+	}
+	if input.PaidMonths != nil {
+		item.PaidMonths = *input.PaidMonths
+	}
+	if input.DeductionDay >= 1 && input.DeductionDay <= 28 {
+		item.DeductionDay = input.DeductionDay
+	}
+	if input.StartDate != "" {
+		item.StartDate = input.StartDate
+	}
+	if input.EndDate != "" {
+		item.EndDate = input.EndDate
+	}
+	if input.Status != "" {
+		item.Status = input.Status
+		item.Enabled = (input.Status == "active")
+	}
+	if input.Enabled != nil {
+		item.Enabled = *input.Enabled
+		if *input.Enabled {
+			item.Status = "active"
+		} else {
+			item.Status = "paused"
+		}
+	}
+	item.UpdatedAt = time.Now()
+
+	updateDoc := bson.M{
+		"recurring_expenses": items,
+	}
+
+	// Keep EIC sync if id == "eic_insurance"
+	if item.ID == "eic_insurance" && settings.EICRecurring != nil {
+		updateDoc["eic_recurring.monthly_amount"] = item.MonthlyAmount
+		updateDoc["eic_recurring.total_months"] = item.TotalMonths
+		updateDoc["eic_recurring.deduction_day"] = item.DeductionDay
+		updateDoc["eic_recurring.start_date"] = item.StartDate
+		updateDoc["eic_recurring.end_date"] = item.EndDate
+		updateDoc["eic_recurring.status"] = item.Status
+		updateDoc["eic_recurring.enabled"] = item.Enabled
+		updateDoc["eic_recurring.description"] = item.SubDescription
+	}
+
+	_, err := h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": updateDoc})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recurring expense: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Recurring expense schedule updated successfully",
+		"item":    item,
+	})
+}
+
+// DeleteRecurringExpense removes a recurring expense schedule
+func (h *ExpenseHandler) DeleteRecurringExpense(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Recurring expense ID is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var settings models.Settings
+	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Settings not found"})
+		return
+	}
+
+	items := h.ensureRecurringExpenses(ctx, &settings)
+	newItems := make([]models.RecurringExpense, 0, len(items))
+	found := false
+	for _, it := range items {
+		if it.ID == id {
+			found = true
+			continue
+		}
+		newItems = append(newItems, it)
+	}
+
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Recurring expense schedule not found"})
+		return
+	}
+
+	_, err := h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": bson.M{"recurring_expenses": newItems}})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recurring expense: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Recurring expense schedule deleted successfully"})
+}
+
+// ToggleRecurringExpense toggles active vs paused status
+func (h *ExpenseHandler) ToggleRecurringExpense(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Recurring expense ID is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var settings models.Settings
+	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Settings not found"})
+		return
+	}
+
+	items := h.ensureRecurringExpenses(ctx, &settings)
+	foundIdx := -1
+	for i := range items {
+		if items[i].ID == id {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Recurring expense not found"})
+		return
+	}
+
+	item := &items[foundIdx]
+	if item.Status == "active" {
+		item.Status = "paused"
+		item.Enabled = false
+	} else {
+		item.Status = "active"
+		item.Enabled = true
+	}
+	item.UpdatedAt = time.Now()
+
+	updateDoc := bson.M{
+		"recurring_expenses": items,
+	}
+	if item.ID == "eic_insurance" && settings.EICRecurring != nil {
+		updateDoc["eic_recurring.status"] = item.Status
+		updateDoc["eic_recurring.enabled"] = item.Enabled
+	}
+
+	_, err := h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": updateDoc})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to toggle schedule: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("%s is now %s", item.Title, item.Status),
+		"status":  item.Status,
+		"enabled": item.Enabled,
+	})
+}
+
+// DeductRecurringExpenseNow immediately deducts the item for the current month
+func (h *ExpenseHandler) DeductRecurringExpenseNow(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Recurring expense ID is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var settings models.Settings
+	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Settings not found"})
+		return
+	}
+
+	items := h.ensureRecurringExpenses(ctx, &settings)
+	foundIdx := -1
+	for i := range items {
+		if items[i].ID == id {
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundIdx == -1 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Recurring expense not found"})
+		return
+	}
+
+	item := &items[foundIdx]
+	now := time.Now()
+	currentMonthStr := now.Format("2006-01")
+	expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
+	newPaidMonths := item.PaidMonths + 1
+
+	receiptNum := fmt.Sprintf("REC-MANUAL-%s-%s", item.ID, currentMonthStr)
+	if item.ID == "eic_insurance" {
+		receiptNum = fmt.Sprintf("EIC-MANUAL-%s", currentMonthStr)
+	}
+
+	desc := fmt.Sprintf("%s - Monthly Deduction (%s) (Manual / On-Demand Deduction)", item.Title, currentMonthStr)
+	if item.TotalMonths > 0 {
+		desc = fmt.Sprintf("%s - Month %d of %d (Manual / On-Demand Deduction)", item.Title, newPaidMonths, item.TotalMonths)
+	}
+
+	expenseType := item.Category
+	if expenseType == "" {
+		expenseType = "other"
+	}
+
+	truckPlate := "All Fleet / Recurring Overhead"
+	driverName := item.Title
+	if item.ID == "eic_insurance" {
+		truckPlate = "All Fleet (Comprehensive Insurance)"
+		driverName = "Ethiopian Insurance Corporation (EIC)"
+	}
+
+	expense := models.Expense{
+		ID:            bson.NewObjectID(),
+		ExpenseNumber: expNumber,
+		TruckID:       "fleet",
+		TruckPlate:    truckPlate,
+		DriverID:      "overhead",
+		DriverName:    driverName,
+		ExpenseType:   expenseType,
+		Amount:        item.MonthlyAmount,
+		Date:          now,
+		Description:   desc,
+		ReceiptNumber: receiptNum,
+		Status:        "active",
+		CreatedAt:     now,
+	}
+
+	_, err := h.DB.Expenses.InsertOne(ctx, expense)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert expense: " + err.Error()})
+		return
+	}
+
+	item.PaidMonths = newPaidMonths
+	item.LastDeductedMonth = currentMonthStr
+	item.LastDeductedAt = &now
+	item.UpdatedAt = now
+	if item.TotalMonths > 0 && item.PaidMonths >= item.TotalMonths {
+		item.Status = "completed"
+	}
+
+	updateDoc := bson.M{
+		"recurring_expenses": items,
+	}
+	if item.ID == "eic_insurance" && settings.EICRecurring != nil {
+		updateDoc["eic_recurring.paid_months"] = item.PaidMonths
+		updateDoc["eic_recurring.last_deducted_month"] = item.LastDeductedMonth
+		updateDoc["eic_recurring.last_deducted_at"] = item.LastDeductedAt
+		updateDoc["eic_recurring.status"] = item.Status
+	}
+
+	_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": updateDoc})
+
+	userName := c.GetString("fullName")
+	userIDStr := c.GetString("userID")
+	h.LogAudit(ctx, userIDStr, userName, "Executed Recurring Expense Deduction", "Expense", expense.ID.Hex(), "",
+		fmt.Sprintf("Deducted %s: %.0f ETB for %s", item.Title, item.MonthlyAmount, currentMonthStr))
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     fmt.Sprintf("Successfully recorded deduction of %.0f ETB for %s", item.MonthlyAmount, item.Title),
+		"expense":     expense,
+		"paid_months": newPaidMonths,
+	})
+}
+
+// GetEICRecurring returns the EIC auto-deduction schedule and status (backward compatibility)
+func (h *ExpenseHandler) GetEICRecurring(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Run auto-deduction check first
+	_, _ = h.CheckAndExecuteAllRecurringDeductions(ctx)
+
+	var settings models.Settings
+	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load settings"})
+		return
+	}
+
+	items := h.ensureRecurringExpenses(ctx, &settings)
+	var eicItem models.RecurringExpense
+	for _, it := range items {
+		if it.ID == "eic_insurance" {
+			eicItem = it
+			break
+		}
+	}
+
 	eic := settings.EICRecurring
 	if eic == nil {
 		eic = &models.EICRecurringConfig{
-			Enabled:           true,
-			MonthlyAmount:     150000,
-			TotalMonths:       24,
-			PaidMonths:        0,
-			StartDate:         "2026-10-01",
-			EndDate:           "2028-10-01",
-			DeductionDay:      1,
-			LastDeductedMonth: "",
-			Description:       "EIC (Ethiopian Insurance Corporation) Monthly Fleet Insurance Premium",
-			Status:            "active",
+			Enabled:           eicItem.Enabled,
+			MonthlyAmount:     eicItem.MonthlyAmount,
+			TotalMonths:       eicItem.TotalMonths,
+			PaidMonths:        eicItem.PaidMonths,
+			StartDate:         eicItem.StartDate,
+			EndDate:           eicItem.EndDate,
+			DeductionDay:      eicItem.DeductionDay,
+			LastDeductedMonth: eicItem.LastDeductedMonth,
+			Description:       eicItem.SubDescription,
+			Status:            eicItem.Status,
 		}
 	}
 
@@ -512,6 +1178,7 @@ func (h *ExpenseHandler) GetEICRecurring(c *gin.Context) {
 		"$or": []bson.M{
 			{"expense_type": "insurance"},
 			{"receipt_number": bson.M{"$regex": "^EIC-"}},
+			{"receipt_number": bson.M{"$regex": "^REC-.*eic"}},
 		},
 	}, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}))
 
@@ -555,7 +1222,7 @@ func (h *ExpenseHandler) GetEICRecurring(c *gin.Context) {
 	})
 }
 
-// UpdateEICRecurring updates the EIC configuration
+// UpdateEICRecurring updates the EIC configuration (backward compatibility)
 func (h *ExpenseHandler) UpdateEICRecurring(c *gin.Context) {
 	var input models.EICRecurringConfig
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -579,7 +1246,29 @@ func (h *ExpenseHandler) UpdateEICRecurring(c *gin.Context) {
 		input.Status = "active"
 	}
 	if input.Description == "" {
-		input.Description = "EIC (Ethiopian Insurance Corporation) Monthly Fleet Insurance Premium"
+		input.Description = "Automatic monthly deduction on the 1st day of the month for 2 years (24 installments). Automatically debited into operational expenses and financial reports."
+	}
+
+	var settings models.Settings
+	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err == nil {
+		items := h.ensureRecurringExpenses(ctx, &settings)
+		for i := range items {
+			if items[i].ID == "eic_insurance" {
+				items[i].MonthlyAmount = input.MonthlyAmount
+				items[i].TotalMonths = input.TotalMonths
+				items[i].DeductionDay = input.DeductionDay
+				items[i].StartDate = input.StartDate
+				items[i].EndDate = input.EndDate
+				items[i].Status = input.Status
+				items[i].Enabled = input.Enabled
+				items[i].SubDescription = input.Description
+				items[i].UpdatedAt = time.Now()
+				break
+			}
+		}
+		_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": bson.M{
+			"recurring_expenses": items,
+		}})
 	}
 
 	_, err := h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
@@ -605,7 +1294,7 @@ func (h *ExpenseHandler) UpdateEICRecurring(c *gin.Context) {
 	})
 }
 
-// ToggleEICRecurring toggles active / paused
+// ToggleEICRecurring toggles active / paused (backward compatibility)
 func (h *ExpenseHandler) ToggleEICRecurring(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -623,10 +1312,21 @@ func (h *ExpenseHandler) ToggleEICRecurring(c *gin.Context) {
 		newEnabled = true
 	}
 
-	_, err := h.DB.Settings.UpdateOne(ctx, bson.M{}, bson.M{
+	items := h.ensureRecurringExpenses(ctx, &settings)
+	for i := range items {
+		if items[i].ID == "eic_insurance" {
+			items[i].Status = newStatus
+			items[i].Enabled = newEnabled
+			items[i].UpdatedAt = time.Now()
+			break
+		}
+	}
+
+	_, err := h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{
 		"$set": bson.M{
 			"eic_recurring.status":  newStatus,
 			"eic_recurring.enabled": newEnabled,
+			"recurring_expenses":   items,
 		},
 	})
 	if err != nil {
@@ -641,72 +1341,9 @@ func (h *ExpenseHandler) ToggleEICRecurring(c *gin.Context) {
 	})
 }
 
-// DeductEICNow manually forces or executes the EIC deduction for the current month
+// DeductEICNow manually forces or executes the EIC deduction for the current month (backward compatibility)
 func (h *ExpenseHandler) DeductEICNow(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	var settings models.Settings
-	if err := h.DB.Settings.FindOne(ctx, bson.M{}).Decode(&settings); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Settings not found"})
-		return
-	}
-
-	eic := settings.EICRecurring
-	if eic == nil {
-		eic = &models.EICRecurringConfig{
-			Enabled:       true,
-			MonthlyAmount: 150000,
-			TotalMonths:   24,
-			PaidMonths:    0,
-			Status:        "active",
-		}
-	}
-
-	now := time.Now()
-	currentMonthStr := now.Format("2006-01")
-
-	// Create expense
-	expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
-	newPaidMonths := eic.PaidMonths + 1
-
-	expense := models.Expense{
-		ID:            bson.NewObjectID(),
-		ExpenseNumber: expNumber,
-		TruckID:       "fleet",
-		TruckPlate:    "All Fleet (Comprehensive Insurance)",
-		DriverID:      "eic_corp",
-		DriverName:    "Ethiopian Insurance Corporation (EIC)",
-		ExpenseType:   "insurance",
-		Amount:        eic.MonthlyAmount,
-		Date:          now,
-		Description:   fmt.Sprintf("EIC Monthly Fleet Insurance Premium - Month %d of %d (Manual / On-Demand Deduction)", newPaidMonths, eic.TotalMonths),
-		ReceiptNumber: fmt.Sprintf("EIC-MANUAL-%s", currentMonthStr),
-		Status:        "active",
-		CreatedAt:     now,
-	}
-
-	_, err := h.DB.Expenses.InsertOne(ctx, expense)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert expense: " + err.Error()})
-		return
-	}
-
-	updateFields := bson.M{
-		"eic_recurring.paid_months":         newPaidMonths,
-		"eic_recurring.last_deducted_month": currentMonthStr,
-		"eic_recurring.last_deducted_at":    now,
-	}
-	if newPaidMonths >= eic.TotalMonths {
-		updateFields["eic_recurring.status"] = "completed"
-	}
-
-	_, _ = h.DB.Settings.UpdateOne(ctx, bson.M{"_id": settings.ID}, bson.M{"$set": updateFields})
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":     fmt.Sprintf("Successfully recorded EIC deduction of %.0f ETB for %s", eic.MonthlyAmount, currentMonthStr),
-		"expense":     expense,
-		"paid_months": newPaidMonths,
-	})
+	c.Params = append(c.Params, gin.Param{Key: "id", Value: "eic_insurance"})
+	h.DeductRecurringExpenseNow(c)
 }
 

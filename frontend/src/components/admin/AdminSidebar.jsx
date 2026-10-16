@@ -22,8 +22,7 @@ import {
   CreditCard,
   HelpCircle,
   LogOut,
-  PlusCircle,
-  Sparkles
+  FileText
 } from 'lucide-react';
 
 export const AdminSidebar = ({ activeTab, onSelectTab, pendingFuelCount = 0, pendingPaymentsCount = 0, onOpenProfile }) => {
@@ -32,6 +31,7 @@ export const AdminSidebar = ({ activeTab, onSelectTab, pendingFuelCount = 0, pen
   const menuItems = [
     { id: 'dashboard', label: t('menu_dashboard', 'Dashboard'), icon: LayoutDashboard },
     { id: 'trips', label: t('menu_trips', 'All Trips'), icon: ClipboardList },
+    { id: 'notes', label: t('menu_notes', 'Notes & Allowances'), icon: FileText },
     { id: 'payments', label: t('menu_payments', 'Payments'), icon: CreditCard, badge: pendingPaymentsCount },
     { id: 'odometer', label: t('menu_odometer', 'Odometer Records'), icon: Gauge },
     { id: 'trucks', label: t('menu_trucks', 'Truck Fleet'), icon: Truck },
@@ -59,16 +59,6 @@ export const AdminSidebar = ({ activeTab, onSelectTab, pendingFuelCount = 0, pen
           <div className="text-[10px] text-amber-500 font-semibold tracking-wider uppercase">{t('management_brand', 'Management')}</div>
         </div>
       </div>
-
-      {/* "+ Create New Dispatch / Trip" Capsule Pill Button (Matching sample_ui_2.jpg) */}
-      <button
-        type="button"
-        onClick={() => onSelectTab('trips')}
-        className="w-full mb-4 py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-full font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
-      >
-        <PlusCircle className="w-4 h-4 text-white" />
-        <span>{t('create_new_trip', '+ Create New Trip')}</span>
-      </button>
 
       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2 px-3">
         {t('fleet_operations', 'Fleet Operations')}
@@ -109,26 +99,6 @@ export const AdminSidebar = ({ activeTab, onSelectTab, pendingFuelCount = 0, pen
           );
         })}
       </nav>
-
-      {/* Fleet Pro Status Card (Matching Go Pro Card in sample_ui_2.jpg) */}
-      <div className="my-3 p-3.5 bg-gradient-to-br from-indigo-50 to-indigo-100/60 dark:from-indigo-950/40 dark:to-slate-800/80 border border-indigo-200/60 dark:border-indigo-500/30 rounded-2xl relative overflow-hidden shrink-0">
-        <div className="flex items-center gap-2 mb-1.5">
-          <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
-            <Sparkles className="w-3.5 h-3.5" />
-          </div>
-          <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">Fleet Telemetry Pro</span>
-        </div>
-        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed mb-2.5">
-          Real-time tracking, live fuel estimation & instant dispatch sync.
-        </p>
-        <button
-          type="button"
-          onClick={() => onSelectTab('reports')}
-          className="w-full py-1.5 px-3 bg-white dark:bg-indigo-600 hover:bg-slate-50 dark:hover:bg-indigo-500 text-indigo-600 dark:text-white rounded-xl text-[11px] font-bold shadow-xs transition text-center cursor-pointer"
-        >
-          {t('open_analytics', 'Open Analytics')}
-        </button>
-      </div>
 
       {/* Pinned Bottom Items matching Reference UI (sample_ui.jpg: Help Center, Setting, Logout) */}
       <div className="pt-2 mt-auto border-t border-slate-100 dark:border-slate-800 space-y-1">

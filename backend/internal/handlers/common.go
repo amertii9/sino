@@ -33,6 +33,8 @@ func (h *BaseHandler) GenerateNextNumber(ctx context.Context, collectionName, pr
 		count, err = h.DB.Trucks.CountDocuments(ctx, bson.M{})
 	case "drivers":
 		count, err = h.DB.Drivers.CountDocuments(ctx, bson.M{})
+	case "notes":
+		count, err = h.DB.Notes.CountDocuments(ctx, bson.M{})
 	default:
 		count = 0
 	}

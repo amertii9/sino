@@ -27,6 +27,7 @@ type Database struct {
 	Notifications *mongo.Collection
 	Settings      *mongo.Collection
 	OdometerReadings *mongo.Collection
+	Notes         *mongo.Collection
 }
 
 func ConnectDB(uri, dbName string) (*Database, error) {
@@ -64,6 +65,7 @@ func ConnectDB(uri, dbName string) (*Database, error) {
 		Notifications:    db.Collection("notifications"),
 		Settings:         db.Collection("settings"),
 		OdometerReadings: db.Collection("odometer_readings"),
+		Notes:            db.Collection("notes"),
 	}
 
 	return d, nil

@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:6061/api` : 'http://localhost:6061/api');
+const API_BASE_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:6062/api` : 'http://localhost:6062/api');
 
 class ApiClient {
   async request(endpoint, options = {}) {
@@ -33,7 +33,7 @@ class ApiClient {
     } catch (err) {
       console.error(`API Error on [${options.method || 'GET'}] ${endpoint}:`, err);
       if (err.name === 'TypeError' || (err.message && err.message.toLowerCase().includes('fetch'))) {
-        throw new Error('Unable to connect to the backend server. Please verify the backend is running on port 6061.');
+        throw new Error('Unable to connect to the backend server. Please verify the backend is running on port 6062.');
       }
       throw err;
     }

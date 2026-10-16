@@ -497,11 +497,24 @@ func (h *TripHandler) CreateTrip(c *gin.Context) {
 
 	// Automatically create synchronized active Expense records for fees incurred
 	for _, fee := range validFees {
-		expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
 		expType := fee.FeeType
 		if expType != "toll" && expType != "parking" && expType != "washing" && expType != "maintenance" && expType != "weighbridge" && expType != "gate_fee" {
 			expType = "other"
 		}
+
+		// Prevent duplicate expense record if already recorded for this trip fee
+		existingFeeCount, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+			"$or": []bson.M{
+				{"trip_id": trip.ID.Hex(), "amount": fee.Amount, "expense_type": expType},
+				{"receipt_number": fmt.Sprintf("TRIP-%s", tripNumber), "amount": fee.Amount},
+			},
+			"status": bson.M{"$ne": "cancelled"},
+		})
+		if existingFeeCount > 0 {
+			continue
+		}
+
+		expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
 		desc := fee.Description
 		if desc == "" {
 			desc = fmt.Sprintf("Trip %s: %s fee", tripNumber, strings.Title(fee.FeeType))
@@ -580,11 +593,20 @@ func (h *TripHandler) GetTrips(c *gin.Context) {
 	}
 
 	// Date filters
-	period := c.Query("period") // "today", "this_week", "this_month"
+	period := c.Query("period") // "today", "yesterday", "this_week", "this_month", "last_month", "custom"
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+	dateStr := c.Query("date")
+
 	now := time.Now()
 	if period == "today" {
 		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		filter["date"] = bson.M{"$gte": startOfDay}
+	} else if period == "yesterday" {
+		yest := now.AddDate(0, 0, -1)
+		startOfYest := time.Date(yest.Year(), yest.Month(), yest.Day(), 0, 0, 0, 0, now.Location())
+		endOfYest := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		filter["date"] = bson.M{"$gte": startOfYest, "$lt": endOfYest}
 	} else if period == "this_week" {
 		startOfWeek := now.AddDate(0, 0, -int(now.Weekday()))
 		startOfWeek = time.Date(startOfWeek.Year(), startOfWeek.Month(), startOfWeek.Day(), 0, 0, 0, 0, startOfWeek.Location())
@@ -592,6 +614,33 @@ func (h *TripHandler) GetTrips(c *gin.Context) {
 	} else if period == "this_month" {
 		startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 		filter["date"] = bson.M{"$gte": startOfMonth}
+	} else if period == "last_month" {
+		firstDayLastMonth := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, now.Location())
+		firstDayThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		filter["date"] = bson.M{"$gte": firstDayLastMonth, "$lt": firstDayThisMonth}
+	} else if dateStr != "" {
+		if d, err := time.Parse("2006-01-02", dateStr); err == nil {
+			startOfDay := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, now.Location())
+			endOfDay := startOfDay.AddDate(0, 0, 1)
+			filter["date"] = bson.M{"$gte": startOfDay, "$lt": endOfDay}
+		}
+	} else if startDateStr != "" || endDateStr != "" {
+		dateFilter := bson.M{}
+		if startDateStr != "" {
+			if st, err := time.Parse("2006-01-02", startDateStr); err == nil {
+				startOfDay := time.Date(st.Year(), st.Month(), st.Day(), 0, 0, 0, 0, now.Location())
+				dateFilter["$gte"] = startOfDay
+			}
+		}
+		if endDateStr != "" {
+			if et, err := time.Parse("2006-01-02", endDateStr); err == nil {
+				endExclusive := time.Date(et.Year(), et.Month(), et.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, 1)
+				dateFilter["$lt"] = endExclusive
+			}
+		}
+		if len(dateFilter) > 0 {
+			filter["date"] = dateFilter
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1238,7 +1287,36 @@ func (h *TripHandler) CompleteTrip(c *gin.Context) {
 		if expType != "toll" && expType != "parking" && expType != "washing" && expType != "maintenance" && expType != "weighbridge" && expType != "gate_fee" {
 			expType = "other"
 		}
+
+		// Prevent duplicate expense record if already recorded for this trip fee
+		existingCount, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+			"$or": []bson.M{
+				{"trip_id": existingTrip.ID.Hex(), "amount": f.Amount, "expense_type": expType},
+				{"receipt_number": fmt.Sprintf("TRIP-%s", existingTrip.TripNumber), "amount": f.Amount},
+				{"description": bson.M{"$regex": fmt.Sprintf("Trip #?%s", existingTrip.TripNumber)}, "amount": f.Amount},
+			},
+			"status": bson.M{"$ne": "cancelled"},
+		})
+		if existingCount > 0 {
+			// Ensure trip_id and trip_number are attached if missing
+			_, _ = h.DB.Expenses.UpdateMany(ctx, bson.M{
+				"description": bson.M{"$regex": fmt.Sprintf("Trip #?%s", existingTrip.TripNumber)},
+				"trip_id":     "",
+			}, bson.M{
+				"$set": bson.M{
+					"trip_id":        existingTrip.ID.Hex(),
+					"trip_number":    existingTrip.TripNumber,
+					"receipt_number": fmt.Sprintf("TRIP-%s", existingTrip.TripNumber),
+				},
+			})
+			continue
+		}
+
 		expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
+		receiptNum := fmt.Sprintf("TRIP-%s", existingTrip.TripNumber)
+		if input.ReceiptNumber != "" {
+			receiptNum = input.ReceiptNumber
+		}
 		expense := models.Expense{
 			ID:            bson.NewObjectID(),
 			ExpenseNumber: expNumber,
@@ -1246,11 +1324,13 @@ func (h *TripHandler) CompleteTrip(c *gin.Context) {
 			TruckPlate:    existingTrip.TruckPlate,
 			DriverID:      existingTrip.DriverID,
 			DriverName:    existingTrip.DriverName,
+			TripID:        existingTrip.ID.Hex(),
+			TripNumber:    existingTrip.TripNumber,
 			ExpenseType:   expType,
 			Amount:        f.Amount,
 			Date:          time.Now(),
 			Description:   fmt.Sprintf("Trip #%s: %s (%s)", existingTrip.TripNumber, f.Description, expType),
-			ReceiptNumber: input.ReceiptNumber,
+			ReceiptNumber: receiptNum,
 			Status:        "active",
 			CreatedAt:     time.Now(),
 		}

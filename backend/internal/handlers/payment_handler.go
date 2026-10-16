@@ -340,40 +340,56 @@ func (h *PaymentHandler) ApprovePayment(c *gin.Context) {
 	// Ensure synchronized active Expense records exist for all additional fees incurred on this trip
 	for _, fee := range existing.AdditionalFees {
 		if fee.Amount > 0 {
-			count, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
-				"trip_id": existing.ID.Hex(),
-				"amount":  fee.Amount,
-				"status":  "active",
-			})
-			if count == 0 {
-				expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
-				expType := fee.FeeType
-				if expType != "toll" && expType != "parking" && expType != "washing" && expType != "maintenance" && expType != "weighbridge" && expType != "gate_fee" {
-					expType = "other"
-				}
-				desc := fee.Description
-				if desc == "" {
-					desc = fmt.Sprintf("Trip %s: %s fee (deducted upon payment approval)", existing.TripNumber, strings.Title(fee.FeeType))
-				}
-				expense := models.Expense{
-					ID:            bson.NewObjectID(),
-					ExpenseNumber: expNumber,
-					TruckID:       existing.TruckID,
-					TruckPlate:    existing.TruckPlate,
-					DriverID:      existing.DriverID,
-					DriverName:    existing.DriverName,
-					TripID:        existing.ID.Hex(),
-					TripNumber:    existing.TripNumber,
-					ExpenseType:   expType,
-					Amount:        fee.Amount,
-					Date:          paidAt,
-					Description:   desc,
-					ReceiptNumber: fmt.Sprintf("TRIP-%s", existing.TripNumber),
-					Status:        "active",
-					CreatedAt:     time.Now(),
-				}
-				_, _ = h.DB.Expenses.InsertOne(ctx, expense)
+			expType := fee.FeeType
+			if expType != "toll" && expType != "parking" && expType != "washing" && expType != "maintenance" && expType != "weighbridge" && expType != "gate_fee" {
+				expType = "other"
 			}
+			count, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+				"$or": []bson.M{
+					{"trip_id": existing.ID.Hex(), "amount": fee.Amount, "expense_type": expType},
+					{"receipt_number": fmt.Sprintf("TRIP-%s", existing.TripNumber), "amount": fee.Amount},
+					{"description": bson.M{"$regex": fmt.Sprintf("Trip #?%s", existing.TripNumber)}, "amount": fee.Amount},
+				},
+				"status": "active",
+			})
+			if count > 0 {
+				// Already exists! Just update trip_id/trip_number if missing
+				_, _ = h.DB.Expenses.UpdateMany(ctx, bson.M{
+					"description": bson.M{"$regex": fmt.Sprintf("Trip #?%s", existing.TripNumber)},
+					"trip_id":     "",
+				}, bson.M{
+					"$set": bson.M{
+						"trip_id":        existing.ID.Hex(),
+						"trip_number":    existing.TripNumber,
+						"receipt_number": fmt.Sprintf("TRIP-%s", existing.TripNumber),
+					},
+				})
+				continue
+			}
+
+			expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
+			desc := fee.Description
+			if desc == "" {
+				desc = fmt.Sprintf("Trip %s: %s fee (deducted upon payment approval)", existing.TripNumber, strings.Title(fee.FeeType))
+			}
+			expense := models.Expense{
+				ID:            bson.NewObjectID(),
+				ExpenseNumber: expNumber,
+				TruckID:       existing.TruckID,
+				TruckPlate:    existing.TruckPlate,
+				DriverID:      existing.DriverID,
+				DriverName:    existing.DriverName,
+				TripID:        existing.ID.Hex(),
+				TripNumber:    existing.TripNumber,
+				ExpenseType:   expType,
+				Amount:        fee.Amount,
+				Date:          paidAt,
+				Description:   desc,
+				ReceiptNumber: fmt.Sprintf("TRIP-%s", existing.TripNumber),
+				Status:        "active",
+				CreatedAt:     time.Now(),
+			}
+			_, _ = h.DB.Expenses.InsertOne(ctx, expense)
 		}
 	}
 
@@ -512,40 +528,56 @@ func (h *PaymentHandler) BatchApprovePayments(c *gin.Context) {
 			// Ensure synchronized active Expense records exist for all fees incurred on this trip
 			for _, fee := range trip.AdditionalFees {
 				if fee.Amount > 0 {
-					count, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
-						"trip_id": trip.ID.Hex(),
-						"amount":  fee.Amount,
-						"status":  "active",
-					})
-					if count == 0 {
-						expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
-						expType := fee.FeeType
-						if expType != "toll" && expType != "parking" && expType != "washing" && expType != "maintenance" && expType != "weighbridge" && expType != "gate_fee" {
-							expType = "other"
-						}
-						desc := fee.Description
-						if desc == "" {
-							desc = fmt.Sprintf("Trip %s: %s fee (deducted upon payment approval)", trip.TripNumber, strings.Title(fee.FeeType))
-						}
-						expense := models.Expense{
-							ID:            bson.NewObjectID(),
-							ExpenseNumber: expNumber,
-							TruckID:       trip.TruckID,
-							TruckPlate:    trip.TruckPlate,
-							DriverID:      trip.DriverID,
-							DriverName:    trip.DriverName,
-							TripID:        trip.ID.Hex(),
-							TripNumber:    trip.TripNumber,
-							ExpenseType:   expType,
-							Amount:        fee.Amount,
-							Date:          paidAt,
-							Description:   desc,
-							ReceiptNumber: fmt.Sprintf("TRIP-%s", trip.TripNumber),
-							Status:        "active",
-							CreatedAt:     time.Now(),
-						}
-						_, _ = h.DB.Expenses.InsertOne(ctx, expense)
+					expType := fee.FeeType
+					if expType != "toll" && expType != "parking" && expType != "washing" && expType != "maintenance" && expType != "weighbridge" && expType != "gate_fee" {
+						expType = "other"
 					}
+					count, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+						"$or": []bson.M{
+							{"trip_id": trip.ID.Hex(), "amount": fee.Amount, "expense_type": expType},
+							{"receipt_number": fmt.Sprintf("TRIP-%s", trip.TripNumber), "amount": fee.Amount},
+							{"description": bson.M{"$regex": fmt.Sprintf("Trip #?%s", trip.TripNumber)}, "amount": fee.Amount},
+						},
+						"status": "active",
+					})
+					if count > 0 {
+						// Already exists! Just update trip_id/trip_number if missing
+						_, _ = h.DB.Expenses.UpdateMany(ctx, bson.M{
+							"description": bson.M{"$regex": fmt.Sprintf("Trip #?%s", trip.TripNumber)},
+							"trip_id":     "",
+						}, bson.M{
+							"$set": bson.M{
+								"trip_id":        trip.ID.Hex(),
+								"trip_number":    trip.TripNumber,
+								"receipt_number": fmt.Sprintf("TRIP-%s", trip.TripNumber),
+							},
+						})
+						continue
+					}
+
+					expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
+					desc := fee.Description
+					if desc == "" {
+						desc = fmt.Sprintf("Trip %s: %s fee (deducted upon payment approval)", trip.TripNumber, strings.Title(fee.FeeType))
+					}
+					expense := models.Expense{
+						ID:            bson.NewObjectID(),
+						ExpenseNumber: expNumber,
+						TruckID:       trip.TruckID,
+						TruckPlate:    trip.TruckPlate,
+						DriverID:      trip.DriverID,
+						DriverName:    trip.DriverName,
+						TripID:        trip.ID.Hex(),
+						TripNumber:    trip.TripNumber,
+						ExpenseType:   expType,
+						Amount:        fee.Amount,
+						Date:          paidAt,
+						Description:   desc,
+						ReceiptNumber: fmt.Sprintf("TRIP-%s", trip.TripNumber),
+						Status:        "active",
+						CreatedAt:     time.Now(),
+					}
+					_, _ = h.DB.Expenses.InsertOne(ctx, expense)
 				}
 			}
 		}

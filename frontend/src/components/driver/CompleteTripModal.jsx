@@ -83,6 +83,7 @@ export const CompleteTripModal = ({ isOpen, onClose, onSuccess, initialTrip = nu
     { name: 'Weighbridge / Scale', amount: 100, fee_type: 'weighbridge' },
     { name: 'Parking / Staging', amount: 50, fee_type: 'parking' },
     { name: 'Gate / Yard Pass', amount: 100, fee_type: 'gate_fee' },
+    { name: 'Driver Allowance / Meal Per Diem', amount: 500, fee_type: 'other' },
   ]);
 
   // Smart suggested route price

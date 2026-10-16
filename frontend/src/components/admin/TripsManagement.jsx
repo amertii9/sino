@@ -14,7 +14,10 @@ import {
   RefreshCw,
   Edit,
   Trash2,
-  MapPin
+  MapPin,
+  Calendar,
+  X,
+  RotateCcw
 } from 'lucide-react';
 
 export const TripsManagement = () => {
@@ -36,6 +39,11 @@ export const TripsManagement = () => {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedDropOff, setSelectedDropOff] = useState('');
   const [selectedPricingMethod, setSelectedPricingMethod] = useState('');
+
+  // Date Filters
+  const [dateFilterMode, setDateFilterMode] = useState('all'); // 'all', 'today', 'yesterday', 'this_week', 'this_month', 'last_month', 'custom'
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Modals
   const [cancelModal, setCancelModal] = useState({ open: false, trip: null, reason: '' });
@@ -219,6 +227,73 @@ export const TripsManagement = () => {
     exportToCSV(`hauling_trips_export_${new Date().toISOString().slice(0, 10)}`, filteredTrips, headers);
   };
 
+  const setQuickDate = (mode) => {
+    setDateFilterMode(mode);
+    const now = new Date();
+    const nowY = now.getFullYear();
+    const nowM = String(now.getMonth() + 1).padStart(2, '0');
+    const nowD = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${nowY}-${nowM}-${nowD}`;
+
+    if (mode === 'today') {
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (mode === 'yesterday') {
+      const yest = new Date(now);
+      yest.setDate(yest.getDate() - 1);
+      const yestStr = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, '0')}-${String(yest.getDate()).padStart(2, '0')}`;
+      setStartDate(yestStr);
+      setEndDate(yestStr);
+    } else if (mode === 'this_week') {
+      const dayOfWeek = now.getDay();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - dayOfWeek);
+      const startOfWeekStr = `${startOfWeek.getFullYear()}-${String(startOfWeek.getMonth() + 1).padStart(2, '0')}-${String(startOfWeek.getDate()).padStart(2, '0')}`;
+      setStartDate(startOfWeekStr);
+      setEndDate(todayStr);
+    } else if (mode === 'this_month') {
+      const startOfMonthStr = `${nowY}-${nowM}-01`;
+      setStartDate(startOfMonthStr);
+      setEndDate(todayStr);
+    } else if (mode === 'last_month') {
+      const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      const startStr = `${firstDayLastMonth.getFullYear()}-${String(firstDayLastMonth.getMonth() + 1).padStart(2, '0')}-${String(firstDayLastMonth.getDate()).padStart(2, '0')}`;
+      const endStr = `${lastDayLastMonth.getFullYear()}-${String(lastDayLastMonth.getMonth() + 1).padStart(2, '0')}-${String(lastDayLastMonth.getDate()).padStart(2, '0')}`;
+      setStartDate(startStr);
+      setEndDate(endStr);
+    } else if (mode === 'all') {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
+
+  const resetAllFilters = () => {
+    setSearchTerm('');
+    setSelectedTruck('');
+    setSelectedDriver('');
+    setSelectedMaterial('');
+    setSelectedStatus('');
+    setSelectedDropOff('');
+    setSelectedPricingMethod('');
+    setDateFilterMode('all');
+    setStartDate('');
+    setEndDate('');
+  };
+
+  const hasActiveFilters = Boolean(
+    searchTerm ||
+    selectedTruck ||
+    selectedDriver ||
+    selectedMaterial ||
+    selectedStatus ||
+    selectedDropOff ||
+    selectedPricingMethod ||
+    startDate ||
+    endDate ||
+    dateFilterMode !== 'all'
+  );
+
   const filteredTrips = trips.filter(t => {
     const searchMatch =
       !searchTerm ||
@@ -252,7 +327,29 @@ export const TripsManagement = () => {
         : (t.pricing_method !== 'lump_sum')
     );
 
-    return searchMatch && truckMatch && driverMatch && matMatch && statusMatch && dropOffMatch && methodMatch;
+    // Date filter
+    let dateMatch = true;
+    if (startDate || endDate) {
+      const rawDate = t.date || t.created_at;
+      if (!rawDate) {
+        dateMatch = false;
+      } else {
+        const tripD = new Date(rawDate);
+        if (isNaN(tripD.getTime())) {
+          dateMatch = false;
+        } else {
+          const y = tripD.getFullYear();
+          const m = String(tripD.getMonth() + 1).padStart(2, '0');
+          const d = String(tripD.getDate()).padStart(2, '0');
+          const tripDateStr = `${y}-${m}-${d}`;
+
+          if (startDate && tripDateStr < startDate) dateMatch = false;
+          if (endDate && tripDateStr > endDate) dateMatch = false;
+        }
+      }
+    }
+
+    return searchMatch && truckMatch && driverMatch && matMatch && statusMatch && dropOffMatch && methodMatch && dateMatch;
   });
 
   const totalFilteredRevenue = filteredTrips
@@ -327,24 +424,129 @@ export const TripsManagement = () => {
 
       {/* Filters Bar */}
       <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {/* Row 1: Search & Date Filtering */}
+        <div className="flex flex-col xl:flex-row gap-3 justify-between items-stretch xl:items-center">
           {/* Search */}
-          <div className="relative sm:col-span-2">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
             <input
               type="text"
               placeholder={t('search_trips_placeholder', 'Search trip #, driver, truck, sites, material, slip...')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              className="w-full pl-9 pr-8 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
             />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-2.5 p-0.5 text-slate-400 hover:text-white rounded-md transition cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
+          {/* Date Filter: Quick Presets & Custom Pickers */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Quick Presets */}
+            <div className="flex bg-slate-800/80 p-0.5 rounded-xl border border-slate-700 text-xs">
+              <button
+                onClick={() => setQuickDate('all')}
+                className={`px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer text-[11px] ${
+                  dateFilterMode === 'all' && !startDate && !endDate
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {t('all_time', 'All Time')}
+              </button>
+              <button
+                onClick={() => setQuickDate('today')}
+                className={`px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer text-[11px] ${
+                  dateFilterMode === 'today'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {t('today', 'Today')}
+              </button>
+              <button
+                onClick={() => setQuickDate('yesterday')}
+                className={`px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer text-[11px] ${
+                  dateFilterMode === 'yesterday'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Yesterday
+              </button>
+              <button
+                onClick={() => setQuickDate('this_week')}
+                className={`px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer text-[11px] ${
+                  dateFilterMode === 'this_week'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {t('this_week', 'This Week')}
+              </button>
+              <button
+                onClick={() => setQuickDate('this_month')}
+                className={`px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer text-[11px] ${
+                  dateFilterMode === 'this_month'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {t('this_month', 'This Month')}
+              </button>
+            </div>
+
+            {/* Custom Date Pickers */}
+            <div className="flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-700">
+              <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setDateFilterMode('custom');
+                }}
+                className="bg-transparent text-slate-200 text-xs outline-none cursor-pointer w-28"
+                title="Start Date (From)"
+              />
+              <span className="text-slate-500 text-xs font-semibold">to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setDateFilterMode('custom');
+                }}
+                className="bg-transparent text-slate-200 text-xs outline-none cursor-pointer w-28"
+                title="End Date (To)"
+              />
+              {(startDate || endDate || dateFilterMode !== 'all') && (
+                <button
+                  onClick={() => setQuickDate('all')}
+                  className="p-1 hover:bg-slate-700 text-slate-400 hover:text-rose-400 rounded-lg transition cursor-pointer ml-1"
+                  title="Clear Date Filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Secondary Dropdowns (Truck, Driver, Sites, Material, Status, Reset) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 pt-2 border-t border-slate-800/80">
           {/* Truck filter */}
           <select
             value={selectedTruck}
             onChange={e => setSelectedTruck(e.target.value)}
-            className="py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200"
+            className="py-2 px-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 truncate cursor-pointer"
           >
             <option value="">{t('filter_truck', 'All Trucks')}</option>
             {trucks.map(t => (
@@ -356,7 +558,7 @@ export const TripsManagement = () => {
           <select
             value={selectedDriver}
             onChange={e => setSelectedDriver(e.target.value)}
-            className="py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200"
+            className="py-2 px-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 truncate cursor-pointer"
           >
             <option value="">{t('filter_driver', 'All Drivers')}</option>
             {drivers.map(d => (
@@ -368,7 +570,7 @@ export const TripsManagement = () => {
           <select
             value={selectedDropOff}
             onChange={e => setSelectedDropOff(e.target.value)}
-            className="py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium"
+            className="py-2 px-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium truncate cursor-pointer"
           >
             <option value="">🎯 All Drop-Off Sites</option>
             <option value="final_destination">🏁 Final Destination Only</option>
@@ -380,7 +582,7 @@ export const TripsManagement = () => {
           <select
             value={selectedPricingMethod}
             onChange={e => setSelectedPricingMethod(e.target.value)}
-            className="py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium"
+            className="py-2 px-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 font-medium truncate cursor-pointer"
           >
             <option value="">💳 All Payment Methods</option>
             <option value="lump_sum">💰 Lump-Sum Only (Fixed)</option>
@@ -391,7 +593,7 @@ export const TripsManagement = () => {
           <select
             value={selectedMaterial}
             onChange={e => setSelectedMaterial(e.target.value)}
-            className="py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200"
+            className="py-2 px-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 truncate cursor-pointer"
           >
             <option value="">{t('all_materials_opt', 'All Materials')}</option>
             {materials.map(m => (
@@ -403,13 +605,55 @@ export const TripsManagement = () => {
           <select
             value={selectedStatus}
             onChange={e => setSelectedStatus(e.target.value)}
-            className="py-2.5 px-3 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200"
+            className="py-2 px-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 truncate cursor-pointer"
           >
             <option value="">{t('all_statuses_opt', 'All Statuses')}</option>
             <option value="completed">{t('completed_tab', 'Completed')}</option>
             <option value="cancelled">{t('cancelled', 'Cancelled')}</option>
           </select>
+
+          {/* Reset Filters button */}
+          {hasActiveFilters ? (
+            <button
+              onClick={resetAllFilters}
+              className="py-2 px-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              title="Reset all active filters"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Filters</span>
+            </button>
+          ) : (
+            <div className="hidden lg:flex items-center justify-center text-[11px] text-slate-500 font-medium">
+              No filters active
+            </div>
+          )}
         </div>
+
+        {/* Active Date Filter Chip (if filtered by date) */}
+        {(startDate || endDate || dateFilterMode !== 'all') && (
+          <div className="flex items-center justify-between px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+              <span>
+                <strong>Filtered by Date:</strong>{' '}
+                {startDate && endDate
+                  ? `${formatDate(startDate)} → ${formatDate(endDate)}`
+                  : startDate
+                  ? `From ${formatDate(startDate)} onwards`
+                  : `Up to ${formatDate(endDate)}`}
+              </span>
+              <span className="text-[11px] text-amber-400/80 font-mono font-bold">
+                ({filteredTrips.length} {filteredTrips.length === 1 ? 'trip found' : 'trips found'})
+              </span>
+            </div>
+            <button
+              onClick={() => setQuickDate('all')}
+              className="text-[11px] text-amber-300 hover:text-white underline cursor-pointer"
+            >
+              Show All Time
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Trips Table */}

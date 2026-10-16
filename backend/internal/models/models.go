@@ -352,6 +352,25 @@ type TransitPointSuggestion struct {
 	Notes                  string  `bson:"notes,omitempty" json:"notes"`
 }
 
+type RecurringExpense struct {
+	ID                string     `bson:"id" json:"id"`
+	Title             string     `bson:"title" json:"title"`                             // e.g. "Ethiopian Insurance Corporation (EIC)" or "Office Rent"
+	Category          string     `bson:"category" json:"category"`                       // "insurance", "rent", "software", "maintenance", "security", "loan", "other"
+	SubDescription    string     `bson:"sub_description" json:"sub_description"`         // Custom subtitle note
+	Enabled           bool       `bson:"enabled" json:"enabled"`
+	MonthlyAmount     float64    `bson:"monthly_amount" json:"monthly_amount"`
+	TotalMonths       int        `bson:"total_months" json:"total_months"`               // 0 = indefinite / ongoing
+	PaidMonths        int        `bson:"paid_months" json:"paid_months"`
+	StartDate         string     `bson:"start_date" json:"start_date"`                 // "2026-10-01"
+	EndDate           string     `bson:"end_date,omitempty" json:"end_date,omitempty"` // "2028-10-01"
+	DeductionDay      int        `bson:"deduction_day" json:"deduction_day"`           // 1 to 28
+	LastDeductedMonth string     `bson:"last_deducted_month" json:"last_deducted_month"` // "2026-10"
+	LastDeductedAt    *time.Time `bson:"last_deducted_at,omitempty" json:"last_deducted_at,omitempty"`
+	Status            string     `bson:"status" json:"status"`                         // "active", "paused", "completed"
+	CreatedAt         time.Time  `bson:"created_at" json:"created_at"`
+	UpdatedAt         time.Time  `bson:"updated_at" json:"updated_at"`
+}
+
 type DestinationRateSuggestion struct {
 	ID                     string  `bson:"id" json:"id"`
 	Name                   string  `bson:"name" json:"name"`
@@ -379,6 +398,7 @@ type Settings struct {
 	TransitPointSuggestions    []TransitPointSuggestion     `bson:"transit_point_suggestions,omitempty" json:"transit_point_suggestions,omitempty"`
 	DestinationRateSuggestions []DestinationRateSuggestion `bson:"destination_rate_suggestions,omitempty" json:"destination_rate_suggestions,omitempty"`
 	EICRecurring               *EICRecurringConfig          `bson:"eic_recurring,omitempty" json:"eic_recurring,omitempty"`
+	RecurringExpenses          []RecurringExpense           `bson:"recurring_expenses,omitempty" json:"recurring_expenses,omitempty"`
 	ReserveFuelBalanceLiters   float64                      `bson:"reserve_fuel_balance_liters" json:"reserve_fuel_balance_liters"`     // Remaining yard tank stock in Liters
 	ReserveFuelCapacityLiters  float64                      `bson:"reserve_fuel_capacity_liters" json:"reserve_fuel_capacity_liters"`   // Yard tank maximum capacity in Liters (e.g. 10000 L)
 	ReserveFuelLowThreshold    float64                      `bson:"reserve_fuel_low_threshold" json:"reserve_fuel_low_threshold"`       // Threshold for low inventory warning (e.g. 1500 L)
@@ -398,3 +418,25 @@ type LoginResponse struct {
 	Driver *Driver  `json:"driver,omitempty"`
 	Truck  *Truck   `json:"truck,omitempty"`
 }
+
+type Note struct {
+	ID              bson.ObjectID `bson:"_id,omitempty" json:"id"`
+	NoteNumber      string        `bson:"note_number" json:"note_number"` // NT-000001
+	Title           string        `bson:"title" json:"title"`
+	Category        string        `bson:"category" json:"category"` // "driver_allowance", "operational", "fuel", "maintenance", "route", "safety", "other"
+	Content         string        `bson:"content" json:"content"`
+	DriverID        string        `bson:"driver_id,omitempty" json:"driver_id,omitempty"`
+	DriverName      string        `bson:"driver_name,omitempty" json:"driver_name,omitempty"`
+	TruckID         string        `bson:"truck_id,omitempty" json:"truck_id,omitempty"`
+	TruckPlate      string        `bson:"truck_plate,omitempty" json:"truck_plate,omitempty"`
+	Amount          float64       `bson:"amount,omitempty" json:"amount,omitempty"`
+	Date            string        `bson:"date" json:"date"` // "YYYY-MM-DD"
+	RecordedBy      string        `bson:"recorded_by" json:"recorded_by"`
+	SyncExpense     bool          `bson:"sync_expense,omitempty" json:"sync_expense,omitempty"`
+	LinkedExpenseID string        `bson:"linked_expense_id,omitempty" json:"linked_expense_id,omitempty"`
+	Priority        string        `bson:"priority,omitempty" json:"priority,omitempty"` // "low", "normal", "high", "urgent"
+	Status          string        `bson:"status" json:"status"`                         // "active", "archived"
+	CreatedAt       time.Time     `bson:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `bson:"updated_at" json:"updated_at"`
+}
+

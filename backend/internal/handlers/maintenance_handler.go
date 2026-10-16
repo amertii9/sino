@@ -101,22 +101,31 @@ func (h *MaintenanceHandler) CreateMaintenance(c *gin.Context) {
 	}
 
 	// Automatically record an expense for this maintenance so truck financial reports are accurate
-	expNumber := h.GenerateNextNumber(ctx, "expenses", "EX")
-	expense := models.Expense{
-		ID:            bson.NewObjectID(),
-		ExpenseNumber: expNumber,
-		TruckID:       input.TruckID,
-		TruckPlate:    input.TruckPlate,
-		ExpenseType:   "maintenance",
-		Amount:        input.Cost,
-		Date:          maintDate,
-		Description:   fmt.Sprintf("%s: %s (Record #%s)", input.MaintenanceType, input.Description, maintNumber),
-		ReceiptNumber: maintNumber,
-		ReceiptURL:    input.ReceiptURL,
-		Status:        "active",
-		CreatedAt:     time.Now(),
+	var expNumber string
+	if input.Cost > 0 {
+		maintCount, _ := h.DB.Expenses.CountDocuments(ctx, bson.M{
+			"receipt_number": maintNumber,
+			"status":         bson.M{"$ne": "cancelled"},
+		})
+		if maintCount == 0 {
+			expNumber = h.GenerateNextNumber(ctx, "expenses", "EX")
+			expense := models.Expense{
+				ID:            bson.NewObjectID(),
+				ExpenseNumber: expNumber,
+				TruckID:       input.TruckID,
+				TruckPlate:    input.TruckPlate,
+				ExpenseType:   "maintenance",
+				Amount:        input.Cost,
+				Date:          maintDate,
+				Description:   fmt.Sprintf("%s: %s (Record #%s)", input.MaintenanceType, input.Description, maintNumber),
+				ReceiptNumber: maintNumber,
+				ReceiptURL:    input.ReceiptURL,
+				Status:        "active",
+				CreatedAt:     time.Now(),
+			}
+			_, _ = h.DB.Expenses.InsertOne(ctx, expense)
+		}
 	}
-	_, _ = h.DB.Expenses.InsertOne(ctx, expense)
 
 	userName := c.GetString("fullName")
 	userIDStr := c.GetString("userID")
@@ -337,6 +346,20 @@ func (h *MaintenanceHandler) UpdateMaintenance(c *gin.Context) {
 		return
 	}
 
+	// Resynchronize truck odometer with verified records
+	truckID := input.TruckID
+	if truckID != "" {
+		if trkObjID, err := bson.ObjectIDFromHex(truckID); err == nil {
+			newLatest := h.GetTruckLatestOdometer(ctx, truckID, "")
+			_, _ = h.DB.Trucks.UpdateOne(ctx, bson.M{"_id": trkObjID}, bson.M{
+				"$set": bson.M{
+					"current_odometer": newLatest,
+					"current_mileage":  newLatest,
+				},
+			})
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Maintenance record updated successfully"})
 }
 
@@ -351,10 +374,25 @@ func (h *MaintenanceHandler) DeleteMaintenance(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	var maint models.Maintenance
+	_ = h.DB.Maintenance.FindOne(ctx, bson.M{"_id": objID}).Decode(&maint)
+
 	_, err = h.DB.Maintenance.DeleteOne(ctx, bson.M{"_id": objID})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete maintenance record"})
 		return
+	}
+
+	if maint.TruckID != "" {
+		if trkObjID, err := bson.ObjectIDFromHex(maint.TruckID); err == nil {
+			newLatest := h.GetTruckLatestOdometer(ctx, maint.TruckID, "")
+			_, _ = h.DB.Trucks.UpdateOne(ctx, bson.M{"_id": trkObjID}, bson.M{
+				"$set": bson.M{
+					"current_odometer": newLatest,
+					"current_mileage":  newLatest,
+				},
+			})
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Maintenance record deleted"})
